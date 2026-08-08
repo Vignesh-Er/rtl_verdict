@@ -11,6 +11,13 @@ module tb_fifo;
     fifo dut (.clk(clk), .rst_n(rst_n), .wr_en(wr_en), .wr_data(wr_data), .rd_en(rd_en),
               .rd_data(rd_data), .full(full), .empty(empty));
 
+    initial begin
+        if ($test$plusargs("vcd")) begin
+            $dumpfile("tb_fifo.vcd");
+            $dumpvars(0, tb_fifo);
+        end
+    end
+
     always #5 clk = ~clk;
 
     task check(input cond, input [255:0] msg, input integer cycle);

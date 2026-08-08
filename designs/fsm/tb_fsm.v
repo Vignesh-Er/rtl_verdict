@@ -7,6 +7,13 @@ module tb_fsm;
 
     fsm dut (.clk(clk), .rst_n(rst_n), .start(start), .busy(busy), .done(done));
 
+    initial begin
+        if ($test$plusargs("vcd")) begin
+            $dumpfile("tb_fsm.vcd");
+            $dumpvars(0, tb_fsm);
+        end
+    end
+
     always #5 clk = ~clk;
 
     integer errors = 0;

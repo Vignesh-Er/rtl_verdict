@@ -8,6 +8,13 @@ module tb_uart;
 
     uart dut (.clk(clk), .rst_n(rst_n), .tx_start(tx_start), .tx_data(tx_data), .tx(tx), .tx_busy(tx_busy));
 
+    initial begin
+        if ($test$plusargs("vcd")) begin
+            $dumpfile("tb_uart.vcd");
+            $dumpvars(0, tb_uart);
+        end
+    end
+
     always #5 clk = ~clk;
 
     integer errors = 0;

@@ -9,6 +9,13 @@ module tb_spi_master;
     spi_master dut (.clk(clk), .rst_n(rst_n), .start(start), .tx_data(tx_data),
                      .sclk(sclk), .cs_n(cs_n), .mosi(mosi), .busy(busy));
 
+    initial begin
+        if ($test$plusargs("vcd")) begin
+            $dumpfile("tb_spi_master.vcd");
+            $dumpvars(0, tb_spi_master);
+        end
+    end
+
     always #5 clk = ~clk;
 
     integer errors = 0;
