@@ -232,6 +232,55 @@ that would also affect a Linux run of record.
   BMC-only and everything unrefuted quarantines. Sound, shippable, honestly
   documented as a limitation.
 
+## eqy control test: invocation is broken, not eqy (P0, follow-up session)
+
+Built a control case: golden `fsm` vs. a gate module with every output
+hardwired to constant 0 (unmistakably non-equivalent). At depth 10, eqy
+correctly returned `UNKNOWN` (not a false PASS). At depth 40, it returned a
+confident `PASS`/"Induction step proven: SUCCESS!" - a soundness-level false
+proof on the most extreme possible test case. Traced partway into the
+mechanism: `combine.log` confirms gold and gate genuinely stay separate
+cells (not a name-collision collapse); each partition's `.sby` script runs
+`setundef -anyseq gate.fsm.<signal>` before solving, and the comparator has
+a documented `in_gold[i] === 1'bx` vacuity escape. Leading hypothesis, not
+proven: an empty/under-populated partition slice interacting with that
+escape. Per explicit decision: **not filing an upstream issue until this is
+better understood** - the invocation is the suspect, not eqy itself.
+
+## D4: witness core (vcd.py, diff_traces.py, run_test.py, wave_query.py)
+
+Hand-rolled VCD parser, verified against real Icarus-generated traces
+(exact values confirmed by hand at three timestamps before trusting it for
+anything downstream). One real bug found running the actual gate: two
+sequential `_compile_and_dump` calls into a shared directory produced an
+ambiguous glob match on the second call (it found the first call's
+already-renamed output too, since both calls' testbenches dump to the same
+filename) - fixed by isolating each call to its own temp directory.
+
+**Gate result: 10/10 real KEEP tasks from corpus_v1 show a genuine,
+correctly-detected first divergence** with sensible signal/expected/actual
+triples. Sim-side cycle numbers differ from the formal ladder's
+`divergence_cycle` by a small constant offset (+1 or +2, one exact match) -
+expected, not a bug: BMC's adversarial search and the testbench's own
+multi-cycle reset sequence are different notions of "cycle 0."
+
+## D5: coi.py (AST backward slice) + suspect_rank.py
+
+**Real bug found and fixed via the containment gate, not by inspection**:
+the first version tracked an enclosing condition's *read signals* but not
+the condition's *own source line* - silently dropping control-dependency
+lines from the slice whenever that line never itself assigns anything
+(e.g. `if (bit_index == 3'd7)` gating an increment in the else branch).
+Gate was 90% (9/10) before the fix, 100% (10/10) after. Full detail and the
+known-imprecision list in `docs/coi_soundness.md`.
+
+`suspect_rank.py` (COI ∩ pre-divergence toggles, ranked by proximity) has a
+confirmed, documented limitation: a VCD records when a signal changed, not
+which of several lines that can write it actually fired, so same-signal
+writes tie in score. The true root cause is always in the tied top group
+(consistent with 100% containment), just not uniquely ranked first -
+breaking ties needs per-statement execution tracking, not yet built.
+
 ## Testbench self-checking
 
 - **Neither upstream Tier B testbench self-checks.** picorv32's
