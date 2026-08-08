@@ -43,7 +43,16 @@ def _field(key: str, field: str) -> str | None:
     return None
 
 
-def parse_coverage_dat(path: str | Path) -> CoverageSummary:
+def parse_coverage_dat(path: str | Path, dut_file: str | None = None) -> CoverageSummary:
+    """dut_file restricts to entries from that source file only (the `f`
+    field), excluding testbench-internal signals. Without it, coverage
+    percentages are inflated/deflated by whatever the testbench itself
+    happens to declare and never use (found in practice: uart's raw,
+    unfiltered toggle coverage was 39.8%, dragged down by 33 testbench-only
+    zero-toggle entries out of 59; the DUT-only figure is a materially
+    different 50.0%, 26/52 - always pass dut_file when reporting a design's
+    coverage, the unfiltered number is not meaningful on its own).
+    """
     by_type: dict[str, list[int]] = {t: [0, 0] for t in _TYPES}
     raw = Path(path).read_text()
     for line in raw.splitlines():
@@ -52,6 +61,8 @@ def parse_coverage_dat(path: str | Path) -> CoverageSummary:
             continue
         key, count_s = m.groups()
         count = int(count_s)
+        if dut_file is not None and _field(key, "f") != dut_file:
+            continue
         cov_type = _field(key, "t")
         if cov_type not in by_type:
             continue
@@ -64,7 +75,8 @@ def parse_coverage_dat(path: str | Path) -> CoverageSummary:
 if __name__ == "__main__":
     import sys
 
-    summary = parse_coverage_dat(sys.argv[1])
+    dut_file = sys.argv[2] if len(sys.argv) > 2 else None
+    summary = parse_coverage_dat(sys.argv[1], dut_file=dut_file)
     for t in _TYPES:
         hit, total = summary.by_type[t]
         pct = summary.pct(t)
