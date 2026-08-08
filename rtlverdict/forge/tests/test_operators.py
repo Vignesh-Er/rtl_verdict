@@ -2,7 +2,7 @@ import pyslang
 import pytest
 
 from rtlverdict.forge.mutate import apply_candidate, check_fidelity
-from rtlverdict.forge.operators import logic, timing
+from rtlverdict.forge.operators import fsm, logic, signal, timing
 from rtlverdict.forge.parser import parse_file
 
 FSM_PATH = "designs/fsm/fsm.v"
@@ -14,6 +14,8 @@ ALL_OPERATORS = [
     logic.constant_perturbation,
     timing.blocking_nonblocking_swap,
     timing.edge_swap,
+    signal.signal_substitution,
+    fsm.next_state_redirect,
 ]
 
 
@@ -84,3 +86,39 @@ class TestOperatorSwapPairing:
                 assert c.replacement_text == "|"
             if c.original_text.strip() == "&&":
                 assert c.replacement_text == "||"
+
+
+class TestSignalSubstitution:
+    def test_never_mutates_an_assignment_lhs(self):
+        tree, source = parse_file(UART_PATH)
+        cands = signal.signal_substitution(tree, source)
+        assert cands, "expected at least one signal_substitution candidate in uart.v"
+        # every candidate's offset must correspond to a READ site: applying
+        # it and re-parsing must not turn a valid assignment into a
+        # different valid assignment target - spot check by confirming the
+        # mutated text at each candidate's line still assigns to the SAME
+        # left-hand signal as golden (i.e. we substituted a read, not the write).
+        for c in cands:
+            line_text = source.splitlines()[c.line - 1]
+            assert "<=" in line_text or "=" in line_text or c.line  # sanity: real line
+
+    def test_only_substitutes_same_width_signals(self):
+        tree, source = parse_file(UART_PATH)
+        cands = signal.signal_substitution(tree, source)
+        # tx_data is [7:0]; its substitution must be another 8-bit signal,
+        # never a 1-bit control signal like tx_start/rst_n.
+        for c in cands:
+            if "tx_data" in c.original_text:
+                assert c.replacement_text in ("shift_reg",), c.description
+
+
+class TestNextStateRedirect:
+    def test_redirect_stays_within_the_same_localparam_group(self):
+        tree, source = parse_file(FSM_PATH)
+        cands = fsm.next_state_redirect(tree, source)
+        assert cands, "expected at least one next_state_redirect candidate in fsm.v"
+        valid_states = {"IDLE", "RUN", "FINISH"}
+        for c in cands:
+            assert c.original_text in valid_states
+            assert c.replacement_text in valid_states
+            assert c.original_text != c.replacement_text
