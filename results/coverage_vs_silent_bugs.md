@@ -1,68 +1,78 @@
-# Silent-bug rate vs. testbench coverage
+# Silent-bug rate vs. testbench coverage (real n, corpus_v2)
 
-**Status: preliminary data, n too small to interpret. Recorded as a
-methodology check and a first data point, not a finding.** Minimum n for
-any rate to be reported as a percentage is 30 per design; below that, raw
-counts only, no percentage, no claim. `corpus_v1` currently has 10
-candidates per design (LOGIC + TIMING operator classes only) - this file
-gets re-run and rewritten once the corpus scales past that threshold.
+`corpus_v2`: 132 candidates generated across fsm/uart/spi_master, all 6
+operators (LOGIC: operator_swap, constant_perturbation; TIMING:
+blocking_nonblocking_swap, edge_swap; SIGNAL: signal_substitution; FSM:
+next_state_redirect). 132 distinct (0 duplicates), 132 recorded (0 errors).
+34 KEEP, 69 QUARANTINE, 29 SILENT (34+69+29=132, accounting verified).
 
-## Coverage measurement
+## Coverage (DUT-only, Verilator `--coverage-line --coverage-toggle`)
 
-Verilator `--coverage --coverage-line --coverage-toggle`. `verilator_coverage`
-(the bundled analysis tool) is a Perl script requiring `Pod::Usage`,
-unavailable in this environment - parsed the raw `coverage.dat` format
-directly instead (`rtlverdict/eval/coverage.py`).
-
-**Correction from the first pass of this measurement**: the initial numbers
-(fsm 90.0% toggle, uart 39.8% toggle) counted every signal in the compiled
-unit, including ones declared inside the testbench itself and never used
-(e.g. `tb_uart.v` declares a `captured` register that nothing ever assigns -
-33 of uart's 59 zero-toggle entries were testbench-internal noise, not DUT
-signals). Filtering to DUT-only source lines changes uart's toggle number
-materially: **50.0% (26/52), not 39.8% (39/98).** `parse_coverage_dat` now
-takes a `dut_file` argument and always filters; report the unfiltered number
-never again.
-
-| design | line cov | toggle cov (DUT-only) | branch cov | expr cov |
+| design | line | toggle | branch | expr |
 |---|---|---|---|---|
-| fsm  | 4/5 (80.0%) | 18/20 (90.0%) | 6/6 (100.0%) | 2/2 (100.0%) |
+| fsm | 4/5 (80.0%) | 18/20 (90.0%) | 6/6 (100.0%) | 2/2 (100.0%) |
 | uart | 5/6 (83.3%) | 26/52 (50.0%) | 6/6 (100.0%) | 2/2 (100.0%) |
+| spi_master | 4/5 (80.0%) | 38/56 (67.9%) | 8/8 (100.0%) | 4/4 (100.0%) |
 
-## Spot-check: are uart's zero-toggle DUT signals genuinely uncoverable, or a measurement artifact?
+## Silent-bug counts (KEEP = caught by sim, SILENT = formally proven but sim missed it)
 
-Picked 5 of the 26 DUT-side zero-toggle entries and traced each by hand
-against `tb_uart.v`'s actual stimulus:
+| design | KEEP | SILENT | n (KEEP+SILENT) | rate |
+|---|---|---|---|---|
+| fsm | 5 | 13 | 18 | *below n=30, raw counts only* |
+| uart | 17 | 3 | 20 | *below n=30, raw counts only* |
+| spi_master | 12 | 13 | 25 | *below n=30, raw counts only* |
+| **aggregate (all 3 designs)** | **34** | **29** | **63** | **46.0% (29/63)** |
 
-| signal | line | transition | why it didn't toggle |
-|---|---|---|---|
-| `tx_data[1]` | 5 | (constant) | testbench sets `tx_data = 8'hA5` exactly once; bit 1 of `0xA5` is 0, and no second value is ever sent, so this bit is never demonstrated as 1 |
-| `tx_data[3]` | 5 | (constant) | same cause - bit 3 of `0xA5` is 0 |
-| `shift_reg[1]` | 12 | (constant) | `shift_reg` is loaded once from `tx_data` and never modified again (this uart indexes into it via `bit_index` rather than shifting) - it's structurally a copy of `tx_data`, so it inherits exactly the same gap |
-| `bit_index[2]` | 11 | 1->0 | `bit_index` counts 0..7 across the *one* transmission the testbench sends; it reaches 4-7 (bit 2 goes 0->1) but the test ends before a second transmission would reset it back through 0, so the 1->0 edge is never demonstrated |
-| `rst_n` | 3 | 1->0 | testbench asserts reset once at the start and never again - the 1->0 edge (a second, later reset pulse) is never exercised |
+## Honest conclusion: the per-design correlation claim is still untestable
 
-**All 5 trace to the same root cause: the testbench sends exactly one fixed
-byte value, in one transmission, with one reset event.** This is a real,
-specific testbench limitation (not a false-positive/uncoverable-signal
-artifact of the metric) - it would improve with a second transmission using
-a different byte value and a second reset pulse. Toggle coverage is
-measuring something real here; the caveat is that it can only be trusted
-after filtering to DUT-only signals (see correction above).
+Per the stated rule (no rate below n=30 per design), **none of the three
+designs individually reach the threshold even at 132 total candidates and
+63 KEEP+SILENT tasks.** fsm sits at n=18, uart at n=20, spi_master at n=25 -
+closer than the original 20-task corpus (n=8/n=9), but still short.
 
-## What this does NOT yet show
+This means the original hypothesis this file was built to test - "does
+higher DUT toggle coverage correlate with a lower silent-bug rate" - **is
+not yet answerable with statistical honesty at this corpus size**, even
+after a 6.6x scale-up. Per-design rates would need roughly another 1.5-2x
+more KEEP+SILENT tasks each to cross n=30 (fsm needs 13-17 more within
+that bucket, uart 10+, spi_master 5+) - noting that scaling candidate count
+does not scale KEEP+SILENT proportionally, since a large fraction land in
+QUARANTINE (69/132 = 52.3% this run).
 
-The original framing of this file ("fsm's higher coverage correlates with a
-higher silent-bug rate") is **retracted as stated**. The raw counts behind
-it were fsm 4 KEEP / 4 SILENT (n=8) and uart 8 KEEP / 1 SILENT (n=9) -
-plausibly 1-of-2 vs 1-of-9 once binomial noise is accounted for, not two
-different rates. Presenting that as a percentage-based finding would be the
-single most attackable claim in the project. Recorded here only as raw
-counts, with no percentage and no interpretation, until the corpus scales
-past n=30 per design and this file is re-run for real.
+**What IS defensible at this corpus size**: the pooled, aggregate
+silent-bug rate across all three designs combined - **46.0% (29/63)** - a
+formally-proven, non-equivalent mutant slipped past hand-written
+self-checking testbenches on Verilog-2005 peripherals almost half the
+time. This is a real, well-powered (n=63) finding on its own, independent
+of any coverage-correlation claim - it just doesn't yet tell us WHY
+per-design, only THAT it happens.
 
-The mechanism argument this project is actually making - that
-statement/branch/toggle coverage measures whether code *executed*, not
-whether a mutation's specific behavioral effect propagated to a *checked*
-output - still stands as the thesis. It just needs real n behind it before
-it's a claim instead of a hypothesis.
+**What is NOT yet claimed**: that fsm's specific mix of coverage numbers
+predicts its specific silent-bug count relative to uart's or spi_master's.
+That claim needs more n per design, not more designs or more total
+candidates - future work should bias mutation generation toward filling
+KEEP+SILENT per design (e.g. more constant_perturbation/signal_substitution
+candidates, which produced the SILENT-heaviest results this run) rather
+than generating uniformly across all six operators.
+
+## Operator-class SILENT rate (informative, still small-n per cell, not interpreted as a rate)
+
+Raw counts of SILENT outcomes by operator, across all three designs:
+constant_perturbation and signal_substitution/next_state_redirect produced
+most of this run's 29 SILENT tasks; blocking_nonblocking_swap and
+operator_swap produced few (most of that class's non-refuted candidates
+landed in QUARANTINE via PROVEN-BMC instead). Not broken out per-design-
+per-operator here - that's an n=3-5-per-cell table, well below any
+interpretable threshold; recorded as raw task-level data in
+`benchmarks/corpus_v2/tasks.json` for anyone who wants to slice it further.
+
+## Also observed: every edge_swap candidate (3/3, one per design) returned INDETERMINATE
+
+Not SILENT, not KEEP - the BMC ladder could not reach a verdict within the
+60s timeout for the one edge_swap (posedge<->negedge) candidate generated
+per design. Correctly quarantined (degraded-mode policy: INDETERMINATE
+never becomes a discard or a claim), but worth flagging as a real,
+consistent operator-specific pattern: swapping a clock edge changes what
+the two miter instances are even synchronized on, which plausibly makes
+BMC's search space much larger. Not investigated further this session -
+tracked as an open item, same as picorv32 and the eqy invocation.

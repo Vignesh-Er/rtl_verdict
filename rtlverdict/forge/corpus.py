@@ -191,20 +191,21 @@ def generate_for_design(
 
 
 def main():
-    out_dir = Path("benchmarks/corpus_v1")
+    out_dir = Path("benchmarks/corpus_v2")
     all_records: list[TaskRecord] = []
     all_stats: dict[str, dict] = {}
 
     designs = [
         ("fsm", Path("designs/fsm"), "fsm", "rst_n", True),
         ("uart", Path("designs/uart"), "uart", "rst_n", True),
+        ("spi_master", Path("designs/spi_master"), "spi_master", "rst_n", True),
     ]
 
     for design_name, design_dir, top_module, reset_signal, reset_active_low in designs:
         print(f"=== {design_name} ===")
         records, stats = generate_for_design(
             design_name, design_dir, top_module, reset_signal, reset_active_low,
-            max_candidates=10, out_dir=out_dir,
+            max_candidates=None, out_dir=out_dir,
         )
         all_records.extend(records)
         all_stats[design_name] = stats
