@@ -1,0 +1,11 @@
+[gold]
+read_verilog uart.v
+prep -top uart
+
+[gate]
+read_verilog uart_mutant_shallow.v
+prep -top uart
+
+[strategy sat]
+use sat
+depth 10

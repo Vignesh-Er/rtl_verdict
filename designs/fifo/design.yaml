@@ -1,0 +1,44 @@
+name: fifo
+tier: A
+source: self
+license: MIT
+top_module: fifo
+clock: clk
+reset: rst_n
+reset_active_low: true
+dut_files: [fifo.v]
+testbench: tb_fifo.v
+sim: iverilog
+chparams: {}
+state_alignment:
+  strategy: reset_only
+  notes: >
+    wr_ptr, rd_ptr, rd_data explicitly cleared under if(!rst_n). mem[] array
+    content is NOT reset (by design, matches real FIFO/regfile hardware) but
+    is never read-before-write in any reachable execution, and golden-vs-
+    golden PASSED cleanly with a plain reset-only miter (no array-specific
+    alignment needed) - unlike picorv32/nerv, this array caused no spurious
+    refutation, only a solver-scaling problem (see below).
+max_sim_cycles: 200
+sim_timeout_s: 30
+trace_format: vcd
+dumpvars_scope: dut_only
+# eqy-first, not BMC-first: BMC+array-theory hits exponential blowup around
+# depth 12-14 on this design regardless of SMT backend (measured: yices,
+# boolector, z3 all capped at step 13-14 within 60s). memory_map bit-blasting
+# roughly doubles reachable depth (step 28/60s) but still short of the
+# standard depth-40 tier. Induction-based checking (eqy) is structurally
+# better suited to memory-containing designs - same lesson as Tier B.
+ladder_order: [eqy, bmc40_memory_map, kind, bmc200_deep]
+formal_notes: >
+  RESOLVED (not an issue): yices produces different raw VCD bytes across
+  identical over-constraint-check runs (different witness values for
+  free-running inputs it doesn't need to pin down), but the VERDICT,
+  divergence STEP (3), and failing assertion LINE are identical across all
+  3 runs - confirmed by rerunning and checking verdict+step+line directly
+  instead of hashing the VCD. The determinism gate must hash
+  (verdict, divergence_cycle, root_cause_line), the semantically meaningful
+  result, never raw VCD bytes. No solver seed option is exposed by
+  yosys-smtbmc or yices-smt2, and none is needed once the gate hashes the
+  right thing.
+reset_covers_all_state: true  # verified via: python -m rtlverdict.forge.reset_coverage designs/fifo/fifo.v

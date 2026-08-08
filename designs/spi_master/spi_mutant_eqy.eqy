@@ -1,0 +1,11 @@
+[gold]
+read_verilog spi_master.v
+prep -top spi_master
+
+[gate]
+read_verilog spi_mutant_shallow.v
+prep -top spi_master
+
+[strategy sat]
+use sat
+depth 10

@@ -1,0 +1,24 @@
+name: uart
+tier: A
+source: self
+license: MIT
+top_module: uart
+clock: clk
+reset: rst_n
+reset_active_low: true
+dut_files: [uart.v]
+testbench: tb_uart.v
+sim: iverilog
+chparams: {}
+state_alignment:
+  strategy: reset_only
+  notes: >
+    state, bit_index, shift_reg, tx, tx_busy all explicitly cleared under
+    if(!rst_n). No memories. Plain "initial assume(!rst_n)" miter confirmed
+    PASS via golden-vs-golden BMC at depth 40.
+max_sim_cycles: 200
+sim_timeout_s: 30
+trace_format: vcd
+dumpvars_scope: dut_only
+ladder_order: [bmc40, eqy, kind, bmc200_deep]
+reset_covers_all_state: true  # verified via: python -m rtlverdict.forge.reset_coverage designs/uart/uart.v

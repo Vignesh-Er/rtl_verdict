@@ -1,0 +1,249 @@
+# FINDINGS.md
+
+Running log of non-obvious things discovered by actually running the tools,
+not by reading documentation. Append, don't rewrite — each entry is dated by
+session, not edited away when superseded (mark superseded entries explicitly
+instead).
+
+---
+
+## Environment / toolchain
+
+- **yosys.exe fails to load (`libreadline8.dll` not found) unless
+  `oss-cad-suite/lib/` is on PATH, not just `bin/`.** The suite's own
+  `environment.bat` confirms this. `rtlverdict/env.py` centralizes the fix.
+- **eqy and Verilator's `--binary` mode both shell out to `make`**, which is
+  not bundled in oss-cad-suite on Windows. Fixed this session with a shim
+  copied from an existing `mingw32-make.exe` on the dev machine — not a
+  general solution; `setup_env.ps1` must provision one on a clean install.
+- **Verilator's path auto-detection has a build-time POSIX path baked in**
+  (`/yosyshq/share/verilator/...`) that doesn't exist on Windows. Fixed by
+  setting `VERILATOR_ROOT` explicitly.
+- **MCY (`mcy run`) is broken on native Windows, not fixable via PATH/env.**
+  Its task launcher does `subprocess(cmd, shell=True)` with a bash-syntax
+  command string (`export TASK=...; cd ...; bash script.sh`). Windows
+  `shell=True` always invokes `<COMSPEC> /c <cmd>` — hardcoded `/c`, not
+  bash's `-c`. Pointing `COMSPEC` at bash.exe doesn't help; Python still
+  appends `/c`, which bash doesn't understand, producing nonsense argument
+  parsing. Requires patching mcy.py's subprocess calls to `["bash", "-c",
+  cmd]` explicitly — out of scope. **Cut from this project's scope per
+  standing decision rule.**
+- **Docker is not installed on the dev machine**, nor is WSL2. Installing
+  either is a real system-level change (admin rights, likely reboot) —
+  flagged for explicit user go-ahead, not done silently.
+
+## Mutation mechanism (forge)
+
+- pyslang's `SyntaxTree.fromText(src).root` re-stringifies byte-identical to
+  input except a trailing-EOF-trivia newline (known, solvable edge case).
+- Every `Token` exposes `.range.start.offset`/`.end.offset` — exact byte
+  offsets into the original source. Splicing a replacement directly into the
+  **original source text** at those offsets (not re-emitting the whole tree)
+  guarantees byte-level fidelity outside the mutation window by construction.
+  Verified: 0 diagnostics on re-parse, byte-identical prefix/suffix.
+- `SyntaxNode.parent` is populated and walkable — needed for context-aware
+  mutation operators (e.g. "is this `<=` inside a clocked always block").
+
+## Miter construction / equivalence checking — the big one
+
+- **A miter comparing two sequential instances needs an explicit reset
+  synchronization assume** (`initial assume(!resetn)` or polarity-correct
+  equivalent). Without it, uninitialized registers are independent free
+  variables per instance under Yosys's formal/BMC semantics, and even two
+  *identical* instances spuriously "refute." Found via a 4-bit counter
+  smoke test early in the project; this is now a hard requirement.
+- **`initial assume(X)` genuinely constrains step 0 only** — verified
+  empirically (not by reading RTLIL, which was actively misleading; see
+  below), via a cover-mode reachability test: `initial assume(q==0)` on a
+  free-running register, `cover(q==5)` reachable at step 1. If the assume
+  held every cycle, that would be impossible.
+  - **Do not trust RTLIL's `$check` cell `EN` port to determine "initial vs
+    every-cycle" semantics.** Every `initial assume` cell shows `EN=1'1`
+    (unconditional) in the post-`prep` RTLIL, with zero `$initstate` cells
+    anywhere in the design. This looks exactly like "applied every cycle."
+    It isn't — the initial-only semantics must be carried through a
+    different mechanism (likely the `PRIORITY` parameter, all-ones, used
+    during `yosys-smtbmc`'s SMT2 unrolling, not visible in the single-frame
+    RTLIL template). **Lesson: when static inspection and dynamic behavior
+    might disagree, build a discriminating experiment — don't trust the
+    static read.**
+
+### picorv32 golden-vs-golden: substantial unresolved investigation
+
+State alignment via manual/mechanical name-matched assumes was tried
+extensively and **abandoned as a dead end**, not because any single attempt
+was wrong, but because the whole approach doesn't generalize to `verdict/`
+(golden vs. an *agent's patch* — renamed registers, restructured logic — has
+no name correspondence to match against by construction). Sequence of
+evidence, in order:
+
+1. `REGS_INIT_ZERO=1` alone (zeroes memory *content* via `\INIT`) — fails at
+   step 6.
+2. Regfile alignment via `DEBUGREGS` debug-tap wires (Yosys's formal frontend
+   rejects hierarchical indexing into a sibling instance's raw memory array —
+   `AST_AUTOWIRE` error on `ref_i.cpuregs[gi]` — named wires work, array
+   elements don't) — fails, narrowed to a `mem_valid` mismatch.
+3. Root cause of *that* traced via a hand-built VCD divergence tool: picorv32
+   deliberately assigns `<= 'bx` to ~20 registers (`reg_op1`, `alu_out`,
+   etc.) as an intentional don't-care verification hint. Under BMC this makes
+   each instance's copy an independent free variable.
+4. Mechanically enumerated all 161 real flip-flops via RTLIL inspection
+   (not simulation-derived guessing) and aligned all of them at t=0 — **got
+   worse**, not better (divergence moved from step 6 to step 1).
+5. **T1 (ran MCY's actual upstream reference miter structure, unmodified in
+   spirit, against vanilla picorv32.v)**: fails identically at step 6, with
+   or without the regfile-latch alignment. This is decisive: it is not a bug
+   in this project's miter-construction code, since even the reference
+   structure fails the same way against an un-mutated design.
+6. Reset-hold sweep (hold `!resetn` for N cycles instead of just step 0,
+   the cheapest form of sim-seeding): N=1 matches baseline. **N=2/4/8/16 all
+   produce `PREUNSAT`** ("assumptions are unsatisfiable") at step 1 — not a
+   real answer. Isolated via three clean tests (hold-counter logic alone in
+   cover mode: works; same logic in BMC mode: works; same logic with two
+   plain module instances sharing resetn: works) that the PREUNSAT is
+   specific to picorv32's own complexity, not the hold-pattern, BMC mode, or
+   dual-instantiation in general. **Root cause not found. Time-boxed and
+   parked** — nerv is the other Tier B design; Tier B is a "defend against
+   easy-designs-only" argument, not required for D7.
+
+**Current status: picorv32/nerv Tier B golden-vs-golden is UNRESOLVED.**
+Tier A (fsm, uart, spi_master, fifo) is fully resolved and green — see below.
+This is a genuine open problem, not a workaround-in-progress.
+
+## T2: Tier A bisection (fsm → uart → spi_master → fifo)
+
+All four PASS golden-vs-golden with nothing but a plain reset assume, at
+BMC depth 40 (fifo at depth 10 — see below). **This resolves the "did we
+just write designs our own mutator handles well" objection for the miter
+mechanism specifically**: the bisection's actual first failure is nerv, not
+any self-authored design, so the open problem is Tier-B-specific, not a
+generic defect in how this project builds miters.
+
+## FIFO: BMC + array theory scales exponentially, independent of solver
+
+- BMC step time on an 8-deep×8-bit FIFO (64 bits of array state): steps
+  0–10 near-instant, then 12→13: 21s, 13→14: 43s, then stalls. k-induction's
+  basecase hits the identical wall (it's BMC-shaped under the hood).
+- **Engine swap doesn't fix it**: yices, boolector, z3 all cap out around
+  step 13–14 within a 60s budget (boolector fastest, z3 slowest, but none
+  escape the wall).
+- **`memory_map` (bit-blast to flops+muxes) roughly doubles reachable
+  depth**: step 28 in 60s vs. 13–14 for plain array-theory BMC. Still short
+  of the standard depth-40 tier, but a real, usable improvement.
+- **Practical fix adopted**: `ladder_order: [eqy, bmc40_memory_map, kind,
+  bmc200_deep]` for fifo — same principle as Tier B: induction-based
+  checking (eqy) is structurally better suited to memory-containing designs
+  than deep BMC unrolling.
+- Refutation is far cheaper than proving (found the shallow over-constraint
+  mutant at step 3, milliseconds) — this blowup affects DISCARD decisions
+  (proving equivalence), not KEEP decisions (finding real bugs). Corpus
+  stays valid; the quarantine pool gets fatter for this design.
+
+## FIFO: solver non-determinism — resolved, was hashing the wrong thing
+
+Ran the identical over-constraint check (golden vs. known shallow mutant,
+`mode bmc`, yices) three times: fsm/uart/spi_master produced byte-identical
+VCD hashes across 3 runs; fifo produced **three different hashes**. Initially
+logged as an open determinism failure. Re-ran capturing verdict + divergence
+step + failing assertion line explicitly instead of hashing the VCD: all 3
+runs agree exactly (FAIL, step 3, same assertion line) — only the raw VCD
+witness bytes differ (yices choosing different but equally valid values for
+free-running inputs it doesn't need to pin down to prove the same point).
+**Conclusion: the determinism gate must hash `(verdict, divergence_cycle,
+root_cause_line)`, never raw VCD bytes.** Fixed in `fifo/design.yaml`;
+`tests/test_determinism.py` must implement it this way from the start, not
+retrofit it after a false alarm.
+
+## eqy on Windows: sound proof engine, unreliable aggregation — and one
+## observation making it currently unusable as a discard-decider
+
+- **Confirmed reproducible bug, general, not memory-specific**: even a
+  trivial memory-free FSM (4 registers, no arrays) fails eqy's *aggregate
+  summary* step with `grep: strategies/fsm.state/sat/status: No such file or
+  directory` on every partition, in the project's working directory (long
+  path under `AppData/Local/Temp/...`). A short working path (`C:\rv\`)
+  avoids this specific symptom on picorv32 (ran cleanly to completion, all
+  459 partitions attempted).
+- **More serious finding**: even with the file-not-found symptom absent
+  (short path), eqy's own aggregate summary can still be wrong. Worse: on a
+  **known-inequivalent** FIFO mutant (wr_ptr increments by 2 instead of 1,
+  confirmed non-equivalent by BMC which refutes it at step 3), eqy's
+  per-partition SAT solving *itself* — not just the buggy summary grep —
+  logged `Proved equivalence of partition 'fifo.wr_ptr' using strategy
+  'sat'`, and the partition's `status` file said `PASS`, for a signal that
+  is demonstrably different between gold and mutant. This is eqy being
+  **optimistically wrong**, the dangerous direction (would silently discard
+  a real bug from the corpus), not just pessimistically wrong (the
+  file-not-found symptom, which only causes over-cautious quarantining).
+- **Consequence**: neither per-partition status files nor eqy's own
+  "Proved equivalence" log lines can be trusted to derive an EQUIVALENT
+  verdict. `rtlverdict/verdict/eqy_parser.py` implements this conservatively:
+  it never returns EQUIVALENT except from a clean aggregate `DONE (PASS...)`
+  line, which has not been observed even once on this machine, on any of
+  five tested designs (trivial counter, fsm, uart, spi_master, fifo,
+  picorv32) — including cases known to be genuinely equivalent. **The eqy
+  discard tier is currently non-functional on this Windows setup**: it can
+  quarantine but can never confirm equivalence. This is sound (no real bugs
+  silently lost) but not a working ladder tier as shipped.
+
+### Characterized: eqy false-proves on 4/4 Tier A designs, not just fifo
+
+Ran eqy golden-vs-mutant on all four Tier A designs, using the same
+known-refutable mutants the over-constraint checks use (BMC-confirmed
+refutation at steps 7/3/17/3 for fsm/uart/spi_master/fifo respectively):
+
+| design | BMC verdict | eqy per-partition | eqy aggregate |
+|---|---|---|---|
+| fsm (no memory) | NON-EQUIV @ step 7 | ALL 4 partitions PASS (false) | FAIL (coincidental, via grep bug) |
+| uart (no memory) | NON-EQUIV @ step 3 | ALL 5 partitions PASS (false), incl. the mutated signal `uart.tx` itself | FAIL (coincidental) |
+| spi_master (no memory) | NON-EQUIV @ step 17 | 6/7 PASS (false), 1 `UNKNOWN` | FAIL (coincidental) |
+| fifo (has memory) | NON-EQUIV @ step 3 | ALL 8 partitions PASS (false) | FAIL (coincidental) |
+
+**4/4. This rules out the memory-array hypothesis entirely** — fsm has zero
+memory and still false-proves on every partition, including the literal
+mutated signal. Sanity-checked that this isn't a config mistake: `gate.log`
+confirms eqy actually read the mutated source file (`fsm_mutant_shallow.v`,
+cell names reference the mutated line) for each case, not golden.v twice.
+
+**This is eqy's per-partition SAT strategy being optimistically wrong on
+this Windows setup, systematically, not occasionally.** The aggregate
+summary happening to say FAIL on all 4 cases is not eqy "getting it right at
+the top level" - it's the unrelated grep-file-not-found bug defaulting to
+failure, which is safe by accident, not by correct reasoning.
+
+**Ladder rule adopted, permanent, not a Windows-only workaround**: eqy's
+EQUIVALENT verdict is never accepted to make a DISCARD decision unless BMC
+k=40 has already failed to refute first. BMC-refutes always overrides
+eqy-proves, unconditionally. This must be a hard precondition in
+`ladder.py`, not a convention someone can accidentally skip.
+
+**Next step**: Docker/Linux cross-validation (planned, blocked on Docker
+install - see Environment section) to determine whether this is a
+Windows-specific build issue (file upstream with YosysHQ - the FIFO case
+alone is already a clean, minimal, reportable bug: 1-line mutation, step-3
+BMC counterexample, eqy says proved) or a general eqy `sat` strategy issue
+that would also affect a Linux run of record.
+- Docker/Linux cross-validation not yet run (Docker unavailable on dev
+  machine, see above) — this is the next step to determine whether the
+  aggregation bug is Windows-specific (file an upstream YosysHQ issue if so)
+  or general (parser stays load-bearing everywhere).
+- **Fallback adopted, decided in advance rather than under pressure**: if
+  eqy cannot be made trustworthy on either platform, the ladder runs
+  BMC-only and everything unrefuted quarantines. Sound, shippable, honestly
+  documented as a limitation.
+
+## Testbench self-checking
+
+- **Neither upstream Tier B testbench self-checks.** picorv32's
+  `testbench_ez.v` and nerv's `testbench.sv` both just run a program and
+  `$finish` unconditionally — no PASS/FAIL determination at all. picorv32's
+  *other* testbench, `testbench.v`, does self-check (`"ALL TESTS PASSED."`)
+  but requires a compiled `firmware/firmware.hex`, which requires a RISC-V
+  GCC cross-compiler toolchain **not currently installed** — a new,
+  unverified dependency. Per project rule (wrap, don't edit upstream): a
+  wrapper testbench needs writing for Tier B; not yet done.
+- **Reset-release race**: setting `rst_n=1` with a blocking assign at the
+  same `posedge clk` the DUT samples it is simulator-order-dependent — found
+  via a false FAIL on a trivial counter testbench early in the project.
+  Fixed by releasing on `negedge clk` instead. Codified as a hard rule in
+  `designs/CONTRACT.md`, not a style preference.

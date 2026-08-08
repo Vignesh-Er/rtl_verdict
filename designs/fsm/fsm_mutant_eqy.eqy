@@ -1,0 +1,11 @@
+[gold]
+read_verilog fsm.v
+prep -top fsm
+
+[gate]
+read_verilog fsm_mutant_shallow.v
+prep -top fsm
+
+[strategy sat]
+use sat
+depth 10

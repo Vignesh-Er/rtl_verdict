@@ -1,0 +1,18 @@
+[options]
+mode bmc
+depth 15
+expect fail
+
+[engines]
+smtbmc yices
+
+[script]
+read_verilog -formal fifo.v
+read_verilog -formal fifo_mutant_shallow_renamed.v
+read_verilog -formal -sv fifo_oc_miter.sv
+prep -top miter
+
+[files]
+fifo.v
+fifo_mutant_shallow_renamed.v
+fifo_oc_miter.sv

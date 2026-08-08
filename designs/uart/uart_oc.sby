@@ -1,0 +1,18 @@
+[options]
+mode bmc
+depth 40
+expect fail
+
+[engines]
+smtbmc yices
+
+[script]
+read_verilog -formal uart.v
+read_verilog -formal uart_mutant_shallow_renamed.v
+read_verilog -formal -sv uart_oc_miter.sv
+prep -top miter
+
+[files]
+uart.v
+uart_mutant_shallow_renamed.v
+uart_oc_miter.sv

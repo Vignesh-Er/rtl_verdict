@@ -1,0 +1,16 @@
+[options]
+mode bmc
+depth 40
+expect pass
+
+[engines]
+smtbmc yices
+
+[script]
+read_verilog -formal uart.v
+read_verilog -formal -sv uart_miter.sv
+prep -top miter
+
+[files]
+uart.v
+uart_miter.sv

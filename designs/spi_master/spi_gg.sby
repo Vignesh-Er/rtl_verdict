@@ -1,0 +1,16 @@
+[options]
+mode bmc
+depth 40
+expect pass
+
+[engines]
+smtbmc yices
+
+[script]
+read_verilog -formal spi_master.v
+read_verilog -formal -sv spi_miter.sv
+prep -top miter
+
+[files]
+spi_master.v
+spi_miter.sv

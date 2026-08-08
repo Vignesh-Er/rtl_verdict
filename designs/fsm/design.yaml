@@ -1,0 +1,25 @@
+name: fsm
+tier: A
+source: self
+license: MIT
+top_module: fsm
+clock: clk
+reset: rst_n
+reset_active_low: true
+dut_files: [fsm.v]
+testbench: tb_fsm.v
+sim: iverilog
+chparams: {}
+state_alignment:
+  strategy: reset_only
+  notes: >
+    Every register (state, counter, busy, done) has explicit if(!rst_n)
+    coverage in its always block. No memories, no deliberate 'bx. A plain
+    "initial assume(!rst_n)" miter is sufficient - confirmed via golden-vs-
+    golden BMC at depth 40, PASS.
+max_sim_cycles: 200
+sim_timeout_s: 30
+trace_format: vcd
+dumpvars_scope: dut_only
+ladder_order: [bmc40, eqy, kind, bmc200_deep]
+reset_covers_all_state: true  # verified via: python -m rtlverdict.forge.reset_coverage designs/fsm/fsm.v

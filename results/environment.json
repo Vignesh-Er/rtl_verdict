@@ -1,0 +1,89 @@
+{
+  "all_ok": true,
+  "tools": [
+    {
+      "name": "yosys",
+      "found": true,
+      "path": "C:\\Users\\vigne\\tools\\oss-cad-suite\\bin\\yosys.EXE",
+      "version_output": "Yosys 0.68+40 (git sha1 0f2bcb94b-dirty, Release, GNU /usr/bin/x86_64-w64-mingw32-g++ 15.2.1)",
+      "error": null
+    },
+    {
+      "name": "sby",
+      "found": true,
+      "path": "C:\\Users\\vigne\\tools\\oss-cad-suite\\bin\\sby.EXE",
+      "version_output": "SBY v0.68",
+      "error": null
+    },
+    {
+      "name": "eqy",
+      "found": true,
+      "path": "C:\\Users\\vigne\\tools\\oss-cad-suite\\bin\\eqy.EXE",
+      "version_output": "EQY v0.68",
+      "error": null
+    },
+    {
+      "name": "mcy",
+      "found": true,
+      "path": "C:\\Users\\vigne\\tools\\oss-cad-suite\\bin\\mcy.EXE",
+      "version_output": "Usage: mcy-script.py [OPTIONS] [COMMAND] [ARGS]...",
+      "error": null
+    },
+    {
+      "name": "iverilog",
+      "found": true,
+      "path": "C:\\Users\\vigne\\tools\\oss-cad-suite\\bin\\iverilog.EXE",
+      "version_output": "Icarus Verilog version 14.0 (devel) (s20260301-349-gf49307688-dirty)",
+      "error": null
+    },
+    {
+      "name": "vvp",
+      "found": true,
+      "path": "C:\\Users\\vigne\\tools\\oss-cad-suite\\bin\\vvp.EXE",
+      "version_output": "Icarus Verilog runtime version 14.0 (devel) (s20260301-349-gf49307688-dirty)",
+      "error": null
+    },
+    {
+      "name": "verilator_bin",
+      "found": true,
+      "path": "C:\\Users\\vigne\\tools\\oss-cad-suite\\bin\\verilator_bin.EXE",
+      "version_output": "Verilator 5.051 devel rev v5.050-150-g7e80ea657 (mod)",
+      "error": null
+    },
+    {
+      "name": "z3",
+      "found": true,
+      "path": "C:\\Users\\vigne\\tools\\oss-cad-suite\\bin\\z3.EXE",
+      "version_output": "Z3 version 4.15.5 - 64 bit",
+      "error": null
+    },
+    {
+      "name": "boolector",
+      "found": true,
+      "path": "C:\\Users\\vigne\\tools\\oss-cad-suite\\bin\\boolector.EXE",
+      "version_output": "3.2.4",
+      "error": null
+    },
+    {
+      "name": "yices",
+      "found": true,
+      "path": "C:\\Users\\vigne\\tools\\oss-cad-suite\\bin\\yices.EXE",
+      "version_output": "Yices 2.7.0",
+      "error": null
+    },
+    {
+      "name": "bash",
+      "found": true,
+      "path": "C:\\Program Files\\Git\\usr\\bin\\bash.EXE",
+      "version_output": "GNU bash, version 5.2.37(1)-release (x86_64-pc-msys)",
+      "error": null
+    },
+    {
+      "name": "make",
+      "found": true,
+      "path": "C:\\Users\\vigne\\tools\\winshims\\make.EXE",
+      "version_output": "GNU Make 4.4.1",
+      "error": null
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+[options]
+mode bmc
+depth 40
+expect fail
+
+[engines]
+smtbmc yices
+
+[script]
+read_verilog -formal fsm.v
+read_verilog -formal fsm_mutant_shallow_renamed.v
+read_verilog -formal -sv fsm_oc_miter.sv
+prep -top miter
+
+[files]
+fsm.v
+fsm_mutant_shallow_renamed.v
+fsm_oc_miter.sv

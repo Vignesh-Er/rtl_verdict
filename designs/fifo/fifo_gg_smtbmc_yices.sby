@@ -1,0 +1,16 @@
+[options]
+mode bmc
+depth 40
+expect pass
+
+[engines]
+smtbmc yices
+
+[script]
+read_verilog -formal fifo.v
+read_verilog -formal -sv fifo_miter.sv
+prep -top miter
+
+[files]
+fifo.v
+fifo_miter.sv

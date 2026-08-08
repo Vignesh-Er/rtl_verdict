@@ -1,0 +1,18 @@
+[options]
+mode bmc
+depth 40
+expect fail
+
+[engines]
+smtbmc yices
+
+[script]
+read_verilog -formal spi_master.v
+read_verilog -formal spi_mutant_shallow_renamed.v
+read_verilog -formal -sv spi_oc_miter.sv
+prep -top miter
+
+[files]
+spi_master.v
+spi_mutant_shallow_renamed.v
+spi_oc_miter.sv
