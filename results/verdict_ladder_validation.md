@@ -17,6 +17,52 @@ re-run — see §1). Regenerate with
 either** — every condition is a fixed, deterministic stub, same
 disclaimer as `results/agent_pilot.md`.
 
+## Answers, up front (full reasoning in §5–§8)
+
+**Which verdict classes has the agent-verdict path now demonstrably
+emitted?** `PLAUSIBLE`, `REFUTED`, and `INVALID-PATCH` — all three
+observed in this document, 12/12 each, on real submitted patches through
+the real `check_patch`/`check_bmc` pipeline. `NO-PATCH` was separately
+demonstrated in Phase 2's cap-trip demo.
+
+**Which remain unreached?** `INDETERMINATE` and `ERROR`. Neither is a
+gap in the ladder itself — both code paths are exercised elsewhere
+(`INDETERMINATE` via `edge_swap`'s pattern in
+`results/equivalent_mutant_rate.md`; `ERROR` via a unit-level
+provider-exception test) — but neither has been produced by a real
+patch going through `run_task`/`check_patch` specifically. Open.
+
+**Is the P0 forge-path `PROVEN-BMC` result produced by the same code
+path as `check_patch`, or a different one?** **The same code, literally
+the same function** — `forge/corpus.py` and `agent/loop.py` both import
+and call `verdict.ladder.check_bmc()` directly, no wrapper, no second
+implementation. What differs is caller-side only: which
+k/timeout/memory_map parameters are used, what gets passed as the
+"mutant" argument, and which label vocabulary (`forge_decision` vs.
+`final_verdict`) is built on top of the same three raw outcomes. See §6.
+
+**Were the C2/C3 "expected" verdicts semantically derived or captured
+from output — and do the two independent sources agree?** Both, by
+design, from two different documents — and they agree. This document's
+own `expected_final_verdict` values (`PLAUSIBLE` for C1/C2, `REFUTED`
+for C3, `INVALID-PATCH` for C4) were **hardcoded in
+`scripts/verdict_ladder_validation.py` before the script was ever run**,
+derived from `verdict/ladder.py`'s own pre-existing `VERDICTS` semantics
+(written for an unrelated, earlier phase of this project, not tuned for
+this test) — not reverse-engineered from a completed run's output.
+`benchmarks/verify_golden.json` (Phase 3's regression-check golden file)
+is different: it is **captured from output by construction** —
+`scripts/verify.py --freeze` mechanically serializes whatever the stub
+produced, which is the correct design for a regression check ("does
+this machine reproduce the same result as before") but is not on its
+own independent evidence of correctness. Re-checked directly (§8): the
+two sources use the identical underlying stub logic on the identical
+two tasks, and their values agree exactly —
+`fsm_constant_perturbation_005` (C2) is `PLAUSIBLE`/raw `PROVEN-BMC` in
+both; `uart_constant_perturbation_005` (C3) is `REFUTED`/raw `REFUTED`
+with a real counterexample (`divergence_cycle=2`) in both. No
+disagreement — nothing to stop for.
+
 ## 1. The four input classes
 
 | condition | what's submitted | expected `final_verdict` |
@@ -210,3 +256,66 @@ rows (12 tasks × 4 conditions). The one genuinely notable finding —
 this document was written against, is not a bug, and nothing was
 changed in `check_patch` or `ladder.py` to make any row's result look
 different from what it actually was.
+
+## 8. `verify_golden.json`'s C2/C3 values: semantics-derived, or captured from output?
+
+Two genuinely different provenance stories exist for what looks like
+the same claim ("C2→`PLAUSIBLE`, C3→`REFUTED`"), and conflating them
+would overstate how much independent checking actually happened.
+
+**This document's expectations are semantics-first.**
+`scripts/verdict_ladder_validation.py` was written in full — including
+the `expected_final_verdict` table — and only then run for the first
+time. The expected values are not a guess: they follow directly from
+`verdict/ladder.py`'s own `VERDICTS` definitions
+(`REFUTED` = "BMC found a genuine counterexample", `PROVEN-BMC` = "no
+counterexample within k steps"), code that predates this validation
+exercise by an entire prior project phase and was never touched to
+produce these results. A true fix mechanically cannot produce a
+counterexample against golden (it IS golden, or a byte-identical
+reconstruction of it); a wrong fix, built from a mutant already
+formally proven to diverge from golden, mechanically must produce one
+within the same bound that originally found it. The expectation was
+derivable — and was derived — before running anything.
+
+**`benchmarks/verify_golden.json` is captured-from-output, by
+construction, and that's the correct design for what it's for.**
+`scripts/verify.py --freeze` does exactly one thing: run the stub
+conditions and serialize whatever came out as `benchmarks/verify_golden.json`.
+There is no hardcoded expectation anywhere in `verify.py` — its job
+(Phase 3) is a fast regression check ("does this machine's toolchain
+reproduce the same result as before"), not independent semantic
+validation. Freezing a golden file from a single run is standard
+practice for that job, but it means the golden file, on its own, cannot
+tell a reader whether the captured value was ever independently checked
+to be *correct*, only that it's *reproducible*.
+
+**Cross-checked directly, not assumed: they agree.**
+`verify.py`'s C2 case reuses `fsm_constant_perturbation_005` and
+`verdict_ladder_validation.py`'s C2 row uses the same task; `verify.py`'s
+C3 case reuses `uart_constant_perturbation_005`, matching this
+document's C3 row for that task — both scripts call the identical
+`_region_true_fix`/`_pick_donor`/`FixedPatchProvider` functions (`verify.py`
+imports them directly from `scripts/verdict_ladder_validation.py` rather
+than reimplementing). Compared field-for-field:
+
+| source | task | final_verdict | raw ladder verdict | divergence_cycle |
+|---|---|---|---|---|
+| `verdict_ladder_validation_report.json` (semantics-first) | fsm_constant_perturbation_005 (C2) | `PLAUSIBLE` | `PROVEN-BMC` | — |
+| `verify_golden.json` (captured) | fsm_constant_perturbation_005 (C2) | `PLAUSIBLE` | *(not recorded in this file)* | — |
+| `verdict_ladder_validation_report.json` (semantics-first) | uart_constant_perturbation_005 (C3) | `REFUTED` | `REFUTED` | `2` |
+| `verify_golden.json` (captured) | uart_constant_perturbation_005 (C3) | `REFUTED` | *(not recorded in this file)* | — |
+
+**No disagreement — nothing to stop for.** The captured golden file's
+`final_verdict` values match the independently semantics-derived
+expectations exactly, for both tasks. This is expected given both
+scripts share the same underlying functions and were run against the
+same, unmodified `check_patch`/`check_bmc` — it is not a coincidence,
+but it also isn't a substitute for having done the semantics-first
+check at all; a future change to the ladder that broke C2/C3 silently
+and consistently (e.g., a bug in *both* scripts' shared helper
+functions) could still pass `make verify` while being wrong, since a
+regression check can only catch drift from its own frozen baseline, not
+an error the baseline itself already contains. That is a standing
+limitation of `verify.py`'s design, not a defect found here — flagged
+so it isn't mistaken for a stronger guarantee than it is.
