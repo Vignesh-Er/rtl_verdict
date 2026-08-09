@@ -44,22 +44,42 @@ class VerdictResult:
     raw_log_tail: str = ""
 
 
+def _kill_process_tree(pid: int) -> None:
+    """subprocess.run(timeout=...) on Windows kills only the immediate
+    child - sby.exe spawns a real descendant chain (sby-script.py ->
+    yosys-smtbmc -> yices-smt2/boolector/z3), and killing just sby.exe
+    orphans that chain, which keeps running indefinitely in the
+    background. Found live: a fifo BMC "timeout" left yices-smt2 running
+    for 17+ minutes and ~1000s of CPU time past the configured 90s budget,
+    silently stealing CPU from every subsequent check and corrupting their
+    timing (see FINDINGS.md). `taskkill /T` kills the whole descendant
+    tree, not just the one PID Python knows about.
+    """
+    subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True, check=False)
+
+
 def _run_sby(sby_path: Path, timeout_s: int) -> tuple[str, float]:
     subprocess_env = env.build_subprocess_env()
     sby_exe = shutil.which("sby.exe", path=subprocess_env["PATH"])
     if sby_exe is None:
         raise RuntimeError("sby.exe not found on PATH built by rtlverdict.env")
     start = time.time()
-    proc = subprocess.run(
+    proc = subprocess.Popen(
         [sby_exe, "-f", str(sby_path.name)],
         cwd=sby_path.parent,
         env=subprocess_env,
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
         text=True,
-        timeout=timeout_s,
     )
+    try:
+        output, _ = proc.communicate(timeout=timeout_s)
+    except subprocess.TimeoutExpired:
+        _kill_process_tree(proc.pid)
+        proc.communicate()  # reap the now-terminated process, avoid a zombie
+        raise
     runtime = time.time() - start
-    return proc.stdout + proc.stderr, runtime
+    return output, runtime
 
 
 def check_bmc(

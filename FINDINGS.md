@@ -354,6 +354,46 @@ k=40/timeout_s=60 as the original generation) on 15 sampled tasks (7 KEEP,
 the recorded verdict in `tasks.json`. **15/15 matched exactly.** corpus_v2
 does not need regeneration.
 
+**Real bug found live, not by inspection: `subprocess.run(timeout=...)` on
+Windows does not kill sby's process tree, only sby.exe itself - a "timed
+out" BMC check leaves the real work (`yices-smt2`, spawned via
+`sby-script.py` -> `yosys-smtbmc-script.py`) running in the background
+indefinitely.** Caught because the first fifo mutation-corpus generation
+run (39 candidates, k=25/timeout_s=90) was still going after 22+ minutes
+with visibly near-zero CPU on the driving Python processes - `Get-CimInstance
+Win32_Process` showed a `yices-smt2.exe` with ~1028s of accumulated CPU
+time and a process tree (`sby-script.py` -> `yosys-smtbmc-script.py` ->
+`yices-smt2.exe`) whose immediate parent PID no longer existed - i.e. the
+top-level `sby.exe` Python's timeout killed HAD already been reaped, while
+its own descendants kept running unbounded. Each subsequent candidate's
+BMC check then had to compete for CPU with every orphan accumulated so
+far, which explains the runaway wall-clock time directly (fifo's checks
+are exactly the slow, near-timeout-prone kind where this bug bites hardest
+- fsm/uart/spi_master's checks are fast enough that none had timed out yet
+in this project's history, so this had never manifested before).
+
+**Already-committed results checked and unaffected**: the k=200 deep-BMC
+promotion pass (69 mutants) never hit this path - max observed runtime
+across all 69 was 22.5s against a 150s timeout, and the 3 INDETERMINATE
+verdicts (the `edge_swap` pattern) resolved in ~1.2s each from an
+unrecognized-log-shape fail-closed classification, not a subprocess
+timeout. corpus_v2's original generation likewise shows no evidence of
+having hit a real timeout. This bug is new-this-session (only triggered by
+fifo's memory_map-heavy, near-timeout-prone checks) and does not retroactively
+put any already-reported number in question.
+
+**Fixed at the root**: `ladder.py`'s `_run_sby` switched from
+`subprocess.run(..., timeout=...)` to `subprocess.Popen` + `.communicate
+(timeout=...)`, and on `TimeoutExpired` now calls `taskkill /F /T /PID
+<pid>` before re-raising - `/T` kills the whole descendant tree, not just
+the one PID Python held a handle to. Verified live: cleaned up the
+already-orphaned processes from the aborted fifo run (confirmed zero
+`yices`/`yosys`/`sby` processes remaining via `Get-Process`), then
+deliberately forced a fast timeout (fifo golden-vs-golden, k=25,
+timeout_s=5) and confirmed `check_bmc` returns promptly AND leaves no
+surviving solver process behind. Full pytest + agent-module verification
+suites re-run clean after the change.
+
 **fifo needs memory_map, and even with it, k=40 is not reliably reachable.**
 `design.yaml` already documented the constraint (plain BMC blows up around
 depth 12-14 on `mem[]`'s array theory regardless of solver backend; with
