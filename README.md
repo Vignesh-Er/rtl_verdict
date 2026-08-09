@@ -1,112 +1,214 @@
 # rtlverdict
 
-A license-free harness that generates formally-validated RTL bug benchmarks
-from Verilog designs, gives AI agents structured hardware debug evidence
-instead of raw logs, and renders a formal verdict on every proposed patch.
-
 **"Your testbench says PASS. Can you prove it?"**
 
-Work in progress, actively developed. This README is honest about what's
-real and what's parked, not a finished pitch - `FINDINGS.md` has the full
-investigation log behind every claim below.
+A license-free, 100%-open-source-toolchain harness (Yosys, SymbiYosys,
+Verilator, Icarus Verilog, Z3, Boolector, Yices — no commercial EDA, no
+FPGA hardware) that mutates Verilog RTL, formally filters the mutants
+against golden behavior, and hands the survivors to debugging agents as
+ground-truth benchmark tasks with a formal verdict on every proposed fix.
 
-## What works today (real numbers, no placeholders)
+## The findings
 
-- **forge** (`rtlverdict/forge/`): a pyslang-based mutation engine that
-  splices the *original source text* at exact token byte-offsets (never
-  re-serializes the parse tree), guaranteeing byte-level fidelity outside
-  the mutated span by construction. LOGIC (operator swap, constant
-  perturbation) and TIMING (blocking/non-blocking swap, edge swap) operator
-  classes are implemented and tested. Gate: 103 generated mutants across 3
-  designs, 0 diff-fidelity failures.
-- **verdict** (`rtlverdict/verdict/`): a formal equivalence ladder,
-  currently **BMC-only** (see Known broken/parked below). Given a golden
-  design and a mutant, it generates a miter from the module's own port list
-  (not hand-written per design) and runs bounded model checking via
-  SymbiYosys. Never promotes a bounded BMC pass to "proven equivalent" -
-  unrefuted mutants quarantine instead of being discarded.
-- **corpus pipeline** (`rtlverdict/forge/corpus.py`): ties mutation
-  generation, simulation confirmation, and the formal ladder together in the
-  order parse → validate → compile → sim → formal, with formal *never*
-  short-circuited on a sim pass. First real run (`benchmarks/corpus_v1/`,
-  20 candidates across fsm + uart): **10 KEEP, 4 QUARANTINE, 6 SILENT.**
-- **Silent-bug detection**: a SILENT task is a mutant formally proven
-  non-equivalent to golden that the design's own testbench does not catch
-  (sim still reports PASS). This is a direct, zero-agent-involvement measure
-  of testbench blindness. 6/20 in the current corpus - real, but n is too
-  small to report as a rate yet (see `results/coverage_vs_silent_bugs.md`).
-- **4 Tier A reference designs** (`designs/{fsm,uart,spi_master,fifo}/`):
-  self-authored, MIT-licensed, Verilog-2005, each with a self-checking
-  testbench conforming to `designs/CONTRACT.md`, a `design.yaml` manifest,
-  and a machine-*verified* (not asserted) `reset_covers_all_state` claim.
+Three numbers from the current 171-task corpus (`fsm`, `uart`,
+`spi_master`, `fifo` — all read from `results/corpus_stats.json`,
+regenerate with `python scripts/build_stats.py`):
 
-## Known broken / parked (not hidden, not worked around silently)
+- **A design's own testbench misses somewhere between 13.6% and 72.2%
+  of the real bugs formally proven to exist in it — and which end of
+  that range depends entirely on which design's testbench is asked.**
+  There is no single "the silent-bug rate" for this method (pooled
+  across all four designs: 37.6% — reported once, here, for
+  comparability with prior work, not as a stable estimate of anything;
+  see `results/silent_bugs.md` for the full per-design breakdown and
+  why a pooled number understates how much this moves).
+- **49.1% of all generated mutation candidates (84/171) are formally
+  proven equivalent to golden — not bugs at all, not silently
+  discarded, but caught by a formal filter before ever reaching an
+  agent.** A naive mutation-testing benchmark that skipped this step
+  would be handing agents non-bugs as its single largest task class
+  (see `results/equivalent_mutant_rate.md`).
+- **`blocking_nonblocking_swap` — the `=` vs `<=` mistake every Verilog
+  textbook warns about — is 95.2% (60/63 evaluated) formally equivalent
+  to golden on these four designs.** It's also the single largest
+  operator class in the corpus. On this evidence, the bug every
+  textbook singles out is usually behaviourally harmless in practice,
+  not usually a bug at all.
 
-- **eqy is not trusted for discard decisions.** A control test (compare
-  golden `fsm` against a gate module with every output hardwired to
-  constant 0 - i.e. unmistakably non-equivalent) produced a confident
-  `PASS`/"Induction step proven: SUCCESS!" from eqy's `sat` strategy. The
-  invocation, not eqy the tool, is suspected broken - investigation ongoing,
-  see `FINDINGS.md`. Until resolved, the ladder is BMC-only: **BMC-refutes
-  always overrides eqy-proves**, and eqy's EQUIVALENT verdict is never used
-  to discard a mutant. No upstream issue filed yet - not until the control
-  test is understood.
-- **picorv32/nerv (Tier B) golden-vs-golden is unresolved.** Extensively
-  investigated (manual state-alignment attempts, a reset-hold sweep, running
-  MCY's own reference miter structure unmodified) - all ruled out as the
-  cause of the remaining divergence. Root cause not found; parked.
-- Tier A is fully green on all six per-design checks (sim, synth,
-  golden-vs-golden, over-constraint, determinism, reset-coverage). Tier B is
-  not required for the current milestone.
-
-## Scope limits (deliberate, not oversights)
-
-- **Verilog-2005 synthesizable subset only.** Open Yosys has weak
-  SystemVerilog support; this is a stated design decision, not a gap to be
-  filled later.
-- **BMC is bounded** (default depth 40). A bounded pass is reported as
-  `PROVEN-BMC`, never promoted to an unbounded equivalence claim.
-- **Module-granularity formal checking.**
-
-## Install
-
-Toolchain lives outside the repo (not committed - it's ~2GB):
+## 60-second quickstart
 
 ```
-# Download YosysHQ's OSS CAD Suite (Windows/Linux/macOS builds available)
-# https://github.com/YosysHQ/oss-cad-suite-build/releases
-# Extract it somewhere, then:
-export RTLVERDICT_OSS_CAD_ROOT=/path/to/oss-cad-suite
+git clone <this repo>
+python -m venv .venv && .venv/Scripts/pip install -r requirements.txt   # .venv/bin/pip on Linux
+export RTLVERDICT_OSS_CAD_ROOT=/path/to/oss-cad-suite   # see docs/REPRODUCE.md
 
-python -m venv .venv
-.venv/bin/pip install pyslang pytest ruff matplotlib numpy
-```
-
-Verify the toolchain (real check, not a placeholder):
-
-```
-python -m pytest rtlverdict/tests/test_env.py -v
-```
-
-## Reproduce / verify
-
-Full setup (Windows and Linux) is in `docs/REPRODUCE.md`. The short version:
-
-```
 python -m rtlverdict.doctor   # every required tool, green or red + a specific remedy
 make verify                   # or: python scripts/verify.py
 ```
 
-`make verify` re-runs the real formal ladder on a fixed 10-task subset
-(golden vs. each task's committed mutant) plus one true-fix and one
-wrong-fix case through the agent-verdict path, and diffs every result
-against a committed golden file — proving the ladder discriminates a
-real fix from a wrong one, not just that the scripts run. **Measured
-runtime: well under the 5-minute budget** (`results/verify_run_report.json`
-has the exact figure from the most recent run). Full accounting of what
-it checks and why: `results/verdict_ladder_validation.md`.
+`make verify` re-runs the real formal ladder (the identical `check_bmc`
+function both `forge/corpus.py` and the agent-verdict path call) on a
+fixed 10-task subset, plus one true-fix and one wrong-fix case through
+the real agent-verdict path, and diffs every result against a committed
+golden file — proving the ladder discriminates a real fix from a wrong
+one, not just that the scripts run.
 
-## Influences
+**Measured runtime: 20.8s** (`results/verify_run_report.json`'s
+`elapsed_s` field, written fresh by the script itself on every run —
+never hand-typed here), against a 5-minute budget. Full accounting of
+what it checks and why: `results/verdict_ladder_validation.md`.
 
-CirFix, RTL-Repair, MCY, HWE-Bench, RealBench, AssertLLM2 - see `PLAN.md`
-for how each shaped this project's design.
+## CI
+
+[![CI](https://github.com/Vignesh-Er/rtl_verdict/actions/workflows/ci.yml/badge.svg)](https://github.com/Vignesh-Er/rtl_verdict/actions/workflows/ci.yml)
+
+Not wired up yet — placeholder, will go live in Phase 4.5 if/when a
+`make verify`-based workflow is added and goes green. Until then this
+badge will 404 or show "no status"; that's expected, not a claim.
+
+## What the three components do
+
+**forge** (`rtlverdict/forge/`) mutates Verilog at exact token
+byte-offsets in the original source text (never re-serializes the parse
+tree, so fidelity outside the mutated span is guaranteed by
+construction, not asserted). Every candidate mutant is formally checked
+against golden via bounded model checking before it's ever labeled a
+bug — unrefuted mutants are quarantined, not discarded, and never
+promoted to "proven equivalent" on a bounded pass alone. The output is
+a labeled task corpus with ground truth: `KEEP` (real bug, testbench
+catches it), `SILENT` (real bug, testbench misses it), `QUARANTINE`
+(formally unrefuted at the depth checked), `ERROR` (never reached
+verification).
+
+**witness** (`rtlverdict/witness/`) is an agent debug toolbelt operating
+on real Icarus-simulated waveforms: `run_test` reports only the *first*
+point where a buggy design's behavior diverges from golden (never a
+flood of downstream noise), `wave_query`/`diff_traces` inspect the
+trace directly, `cone_of_influence` computes a backward static slice of
+every source line that can affect a given signal, and `suspect_rank`
+orders that slice by proximity to the divergence. It exists to give an
+agent structured evidence instead of a raw simulator log.
+
+**verdict** (`rtlverdict/verdict/`) is the formal gate every proposed
+patch — human or agent — passes through. A patch that doesn't parse,
+doesn't elaborate, or changes the module's interface is rejected before
+any formal check runs at all (`INVALID-PATCH`). A patch that survives
+bounded model checking against golden is `PLAUSIBLE` (a bounded claim,
+never promoted to an unbounded proof); one BMC finds a genuine
+counterexample against is `REFUTED`. `results/verdict_ladder_validation.md`
+demonstrates this discriminating on four separate input classes, not
+just running.
+
+## Results
+
+- `results/silent_bugs.md` — the 13.6–72.2% silent-bug spread, per
+  design and per operator, with the coverage-comparability caveat
+  (see Limitations).
+- `results/equivalent_mutant_rate.md` — the 49.1% equivalent-mutant
+  rate and the k=200 deep-BMC negative-result check behind it.
+- `results/verdict_ladder_validation.md` — direct evidence the formal
+  gate discriminates a true fix from a wrong one across four input
+  classes (`48/48` rows matching expectation).
+- `results/agent_pilot.md` — **a plumbing test, not an agent result**
+  (see Limitations) — proves the agent harness executes end-to-end,
+  resumability works, and hard caps trip correctly.
+- `results/corpus_stats.json` — the single generated source every
+  number above is read from; regenerate with
+  `python scripts/build_stats.py`.
+- `docs/engineering_log.md` — eleven cases where a machine-generated
+  result looked right and a cheap discriminating test caught it wrong.
+- `FINDINGS.md` — the full, dated investigation log everything above
+  is drawn from.
+
+## Limitations
+
+Prominent on purpose — a claim's scope is part of the claim.
+
+- **n = 4 designs, all Tier A and self-authored by the same person in
+  the same short window.** Tier B (`picorv32`, `nerv`) is not
+  integrated — their golden-vs-golden formal check has an unresolved
+  divergence after extensive investigation (manual state-alignment,
+  a reset-hold sweep, running MCY's own reference miter unmodified —
+  all ruled out; root cause not found, see `FINDINGS.md`) — and
+  contributes zero tasks to every number above.
+- **No live agent run happened.** No API key was available in this
+  environment. The full harness (task stratification, `run_task`,
+  `check_patch`, `check_bmc`, trajectory writing, resumability, hard
+  caps) was validated end-to-end with a deterministic stub standing in
+  for the LLM — `results/agent_pilot.md` is explicitly a plumbing test
+  proving the wiring works, not an agent capability result. Do not read
+  a verdict count or wall-clock figure there as evidence about agent
+  debugging ability in either direction.
+- **The formal ladder is bounded model checking only, currently, and
+  every pass it reports is bounded.** `k=40` for `fsm`/`uart`/`spi_master`,
+  `k=25` (with `memory_map`, required for its `mem[]` array) for
+  `fifo`. `PROVEN-BMC(k)` is never promoted to an unbounded equivalence
+  claim anywhere in this codebase — see
+  `results/verdict_ladder_validation.md` §5 for why `PROVEN-UNBOUNDED`
+  doesn't exist in the implementation at all yet (eqy point below).
+- **The coverage-vs-silent-bug-rate relationship was investigated and
+  WITHDRAWN, not softened.** The four designs' toggle-coverage
+  denominators span 9.4x (20 to 188 toggle points) — far past the point
+  where a percentage still means the same thing across designs — so no
+  claim, in either direction, is made about coverage predicting or
+  failing to predict silent bugs. See `results/silent_bugs.md` §5. A
+  withdrawn claim, reported plainly, is a credibility gain over quietly
+  dropping the analysis.
+- **The COI (cone-of-influence) containment figure was validated once,
+  on a superseded corpus, and has not been re-measured on the current
+  one.** It is not quoted anywhere in this repo's current results for
+  that reason — see `FINDINGS.md`'s "Parked / unquotable" list.
+- **Linux and Docker install paths are untested by this project.**
+  Developed and validated entirely on Windows 11; `docs/REPRODUCE.md`'s
+  Linux steps and the repo-root `Dockerfile` are believed correct by
+  inspection only. Update this line if Phase 4.5's CI run ever goes
+  green on either.
+- **eqy (equivalence checking, the intended second rung of the ladder)
+  is disabled for real decisions.** A control test (golden `fsm` vs. a
+  gate module with every output hardwired to constant 0 — unmistakably
+  non-equivalent) got a confident false `PASS` from eqy's `sat`
+  strategy at depth 40. Traced partway into the mechanism (an
+  under-populated partition slice interacting with a documented
+  vacuity escape) — **the invocation is the suspect, not eqy itself**,
+  which is why no upstream issue has been filed. Until understood, BMC
+  is the only rung that can make a discard-level claim: BMC-refutes
+  always overrides eqy-proves.
+
+## Architecture & layout
+
+```
+rtlverdict/
+  forge/      mutation generation + the corpus pipeline (parse -> validate -> compile -> sim -> formal)
+  witness/    the agent debug toolbelt (run_test, wave_query, diff_traces, cone_of_influence, suspect_rank)
+  verdict/    the formal gate (miter construction, the BMC ladder, patch pre-checks)
+  agent/      the model-agnostic agent loop, arms A/B, trajectory logging, hard caps
+  eval/       coverage parsing (Verilator's raw coverage.dat, DUT-only filtering)
+  env.py      toolchain PATH/env setup, the Windows-specific fixes it centralizes
+  doctor.py   python -m rtlverdict.doctor
+designs/      the 4 Tier A reference designs, each with its own testbench + design.yaml manifest
+benchmarks/   generated task corpora (tasks.json) + the verify golden file
+results/      every generated report + figure, all traceable to corpus_stats.json
+scripts/      build_stats.py, make_charts.py, verify.py, the agent-pilot/ladder-validation harnesses
+docs/         REPRODUCE.md, engineering_log.md, paper_skeleton.md, docs/validation/ (historical, labeled)
+```
+
+No commercial EDA tool, no FPGA hardware, and no closed-source
+dependency appears anywhere in this list.
+
+## Citation
+
+Not published anywhere yet. If you use this work, cite the repository
+directly for now:
+
+```bibtex
+@software{rtlverdict,
+  title  = {rtlverdict: formally-validated RTL bug benchmarks for agent debugging},
+  author = {Vignesh-Er},
+  url    = {https://github.com/Vignesh-Er/rtl_verdict},
+  year   = {2026}
+}
+```
+
+See `docs/paper_skeleton.md` for the intended related-work positioning
+against RTLFixer, HDLdebugger, CraftRTL, UVLLM, HWE-Bench, RealBench,
+and AssertLLM2.
