@@ -37,3 +37,4 @@ results/agent_pilot/transcripts/*/*/tools/
 results/agent_pilot/transcripts/_caps_demo/*/tools/
 results/verdict_ladder_validation/transcripts/*/*/formal/
 results/verdict_ladder_validation/transcripts/*/*/tools/
+results/verify_work/

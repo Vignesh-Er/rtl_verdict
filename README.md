@@ -88,14 +88,23 @@ Verify the toolchain (real check, not a placeholder):
 python -m pytest rtlverdict/tests/test_env.py -v
 ```
 
-## Reproduce the current corpus
+## Reproduce / verify
+
+Full setup (Windows and Linux) is in `docs/REPRODUCE.md`. The short version:
 
 ```
-python rtlverdict/forge/corpus.py
+python -m rtlverdict.doctor   # every required tool, green or red + a specific remedy
+make verify                   # or: python scripts/verify.py
 ```
 
-Writes `benchmarks/corpus_v1/tasks.json` and prints a KEEP/QUARANTINE/SILENT
-summary. Takes under a minute on the current 20-candidate scale.
+`make verify` re-runs the real formal ladder on a fixed 10-task subset
+(golden vs. each task's committed mutant) plus one true-fix and one
+wrong-fix case through the agent-verdict path, and diffs every result
+against a committed golden file — proving the ladder discriminates a
+real fix from a wrong one, not just that the scripts run. **Measured
+runtime: well under the 5-minute budget** (`results/verify_run_report.json`
+has the exact figure from the most recent run). Full accounting of what
+it checks and why: `results/verdict_ladder_validation.md`.
 
 ## Influences
 

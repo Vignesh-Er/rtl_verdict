@@ -177,11 +177,12 @@ def _all_md_files() -> list[Path]:
 # number isn't in ANY generated file.
 AGENT_PILOT_REPORT_PATH = REPO_ROOT / "results" / "agent_pilot_plumbing_report.json"
 VERDICT_LADDER_REPORT_PATH = REPO_ROOT / "results" / "verdict_ladder_validation_report.json"
+VERIFY_RUN_REPORT_PATH = REPO_ROOT / "results" / "verify_run_report.json"
 
 
 def _load_known_numbers() -> set[int]:
     known = _flatten_numbers(_load_stats())
-    for path in (AGENT_PILOT_REPORT_PATH, VERDICT_LADDER_REPORT_PATH):
+    for path in (AGENT_PILOT_REPORT_PATH, VERDICT_LADDER_REPORT_PATH, VERIFY_RUN_REPORT_PATH):
         if path.exists():
             known |= _flatten_numbers(json.loads(path.read_text()))
     return known
