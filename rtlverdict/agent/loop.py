@@ -51,6 +51,14 @@ class TaskInput:
     reset_active_low: bool
     clock_period: int
     failing_log: str  # raw sim_confirm output - what ARM A sees, and ARM B sees too
+    # Formal-check params for judging the agent's SUBMITTED fix. Must match
+    # whatever this design actually needs (fifo requires memory_map=True and
+    # a shallower k - see FINDINGS.md's Day-9 pivot section; using the
+    # fsm/uart/spi_master defaults on a fifo task would silently produce
+    # useless INDETERMINATE-via-timeout verdicts instead of real ones).
+    formal_k: int = 40
+    formal_timeout_s: int = 120
+    formal_memory_map: bool = False
 
 
 def run_task(
@@ -193,7 +201,7 @@ def run_task(
     patch_path.write_text(submitted_patch)
     formal = check_bmc(
         task.golden_path, str(patch_path), task.top_module, task.reset_signal, task.reset_active_low,
-        work_dir / "formal", k=40, timeout_s=120,
+        work_dir / "formal", k=task.formal_k, timeout_s=task.formal_timeout_s, memory_map=task.formal_memory_map,
     )
     traj.finish(
         verdict=_FORMAL_TO_VERDICT[formal.verdict],

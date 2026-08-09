@@ -342,6 +342,18 @@ producing a wrong-width comparison. Verified: fifo now resolves to `[7:0]`
 matching the hand-written version exactly; fsm/uart/spi_master's port
 extraction is byte-for-byte unchanged (regression-checked).
 
+**Re-verified the fix did not silently invalidate the already-committed
+corpus_v2 (fsm/uart/spi_master).** This is the third latent bug in a row
+where a hand-verified workaround (the hardcoded `[7:0]` in
+`fifo_gg_memmap.sby`) masked a generator defect - "these three designs have
+no parameterized ports so the fix can't affect them" is exactly the kind of
+reasoning that let the bug hide for days, so it was checked rather than
+assumed. `scratch_verify/reverify_corpus_v2_miter_fix.py` re-ran BMC (same
+k=40/timeout_s=60 as the original generation) on 15 sampled tasks (7 KEEP,
+8 QUARANTINE, all 3 designs) using the CURRENT miter.py and diffed against
+the recorded verdict in `tasks.json`. **15/15 matched exactly.** corpus_v2
+does not need regeneration.
+
 **fifo needs memory_map, and even with it, k=40 is not reliably reachable.**
 `design.yaml` already documented the constraint (plain BMC blows up around
 depth 12-14 on `mem[]`'s array theory regardless of solver backend; with

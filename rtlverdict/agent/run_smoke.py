@@ -46,6 +46,18 @@ DESIGN_INFO = {
     "fifo": ("fifo", "rst_n", True, 10000),
 }
 
+# Formal-check params for judging an agent's SUBMITTED fix, per design.
+# fifo needs memory_map=True and a shallower k - see FINDINGS.md's Day-9
+# pivot section (plain BMC hits SMT array-theory blowup on fifo's mem[]
+# array; k=25/90s was calibrated empirically, k=40 does not reliably
+# complete even with memory_map).
+FORMAL_PARAMS = {
+    "fsm": (40, 120, False),
+    "uart": (40, 120, False),
+    "spi_master": (40, 120, False),
+    "fifo": (25, 90, True),
+}
+
 # output-token price per 1M tokens - used as the (conservative) blended
 # rate for the whole max_total_tokens budget, since output is priced
 # higher than input and the budget covers both combined. Unknown models
@@ -69,6 +81,7 @@ def _load_keep_tasks(corpus_path: Path, n: int) -> list[dict]:
 def _build_task_input(task: dict) -> TaskInput:
     design = task["design"]
     top_module, reset_signal, reset_active_low, clock_period = DESIGN_INFO[design]
+    formal_k, formal_timeout_s, formal_memory_map = FORMAL_PARAMS[design]
     testbench_path = REPO_ROOT / "designs" / design / f"tb_{design}.v"
     mutant_path = task["mutant_path"]
 
@@ -81,6 +94,7 @@ def _build_task_input(task: dict) -> TaskInput:
         mutant_path=mutant_path, testbench_path=str(testbench_path),
         top_module=top_module, reset_signal=reset_signal, reset_active_low=reset_active_low,
         clock_period=clock_period, failing_log=failing_log,
+        formal_k=formal_k, formal_timeout_s=formal_timeout_s, formal_memory_map=formal_memory_map,
     )
 
 
