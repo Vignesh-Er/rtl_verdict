@@ -1,4 +1,18 @@
+<!-- stats-scope: historical, corpus=12bb0c982fe94a816014bb7367748745b9b903a4, date=2026-08-08T17:29:44Z -->
+
 # COI (cone_of_influence) soundness notes
+
+**Historical validation record - not a live figure.** The 10/10 containment
+figures below were measured against `corpus_v1` (the original 20-candidate
+corpus), superseded by corpus_v2 + the fifo addition. They do not describe
+the current 171-task corpus - see `results/corpus_stats.json` for current
+figures. Note this note does NOT extend to
+`rtlverdict/witness/tests/test_coi.py`'s `TestContainment` class, which
+remains a live regression test: its `KNOWN_CASES` are signal/
+root_cause_line pairs hardcoded directly from this same corpus_v1 run (not
+synthetic fixtures) and continue to run on every test invocation - moving
+and annotating this markdown file does not touch that test file or weaken
+what it checks.
 
 `rtlverdict/witness/coi.py` computes a static backward slice via the
 pyslang AST: given a signal, which source lines can transitively affect it.

@@ -1,14 +1,17 @@
-"""Phase 0 (the "freeze the numbers" pivot, FINDINGS.md): every number in
+"""Phase 0/1A (the "freeze the numbers" pivot, FINDINGS.md): every number in
 every downstream artifact must come from results/corpus_stats.json, never
 be hand-typed. This file is the enforcement, not just the intent:
   - corpus_stats.json's own internal sums are re-checked independently here
     (not just trusting build_stats.py's own assertions - defense in depth)
-  - every *.md under results/ and docs/ is scanned for a bare integer >= 10
-    that does not appear anywhere in corpus_stats.json and is not on the
-    allowlist (results/stats_allowlist.txt) - a number that fails this
-    check is either a typo, a stale pre-freeze number, or a legitimate
-    exception (a year, a tool version, a k-value) that belongs on the
-    allowlist, explicitly, not silently.
+  - every *.md under results/ and docs/ (except docs/validation/, see below)
+    is scanned for a bare integer >= 10 that does not appear anywhere in
+    corpus_stats.json - a number that fails this check means the doc is
+    stale and needs regenerating. There is deliberately no allowlist: an
+    early version had one, and it was the wrong mechanism (unbounded
+    licence to silence a failing check by adding a line, no different from
+    weakening the assertion itself) - a genuinely historical figure from a
+    superseded corpus belongs in docs/validation/ with a stats-scope
+    header instead, checked by TestValidationDocsAreLabeled below.
 """
 
 from __future__ import annotations
@@ -21,7 +24,6 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 STATS_PATH = REPO_ROOT / "results" / "corpus_stats.json"
-ALLOWLIST_PATH = REPO_ROOT / "results" / "stats_allowlist.txt"
 
 
 def _load_stats() -> dict:
@@ -150,31 +152,60 @@ def _flatten_numbers(obj) -> set[int]:
     return found
 
 
-def _load_allowlist() -> set[int]:
-    if not ALLOWLIST_PATH.exists():
-        return set()
-    allowed = set()
-    for line in ALLOWLIST_PATH.read_text().splitlines():
-        line = line.split("#", 1)[0].strip()
-        if line.isdigit():
-            allowed.add(int(line))
-    return allowed
+VALIDATION_DIR = REPO_ROOT / "docs" / "validation"
+
+_STATS_SCOPE_RE = re.compile(
+    r"^<!--\s*stats-scope:\s*historical,\s*corpus=([0-9a-fUNKNOWNa-zA-Z]+),\s*"
+    r"date=(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z|UNKNOWN)\s*-->\s*$"
+)
+
+
+def _all_md_files() -> list[Path]:
+    files = sorted((REPO_ROOT / "results").rglob("*.md")) + sorted((REPO_ROOT / "docs").rglob("*.md"))
+    # docs/validation/*.md is historical (see stats-scope header check below)
+    # and intentionally excluded from the "must trace to corpus_stats.json"
+    # sweep - it reports figures from superseded corpora, not the current one.
+    return [f for f in files if VALIDATION_DIR not in f.parents]
 
 
 class TestNoUntracedNumbers:
-    @pytest.mark.parametrize(
-        "md_path",
-        sorted((REPO_ROOT / "results").glob("*.md")) + sorted((REPO_ROOT / "docs").glob("*.md")),
-        ids=lambda p: str(p.relative_to(REPO_ROOT)),
-    )
-    def test_every_bare_integer_traces_to_stats_or_allowlist(self, md_path: Path):
+    @pytest.mark.parametrize("md_path", _all_md_files(), ids=lambda p: str(p.relative_to(REPO_ROOT)))
+    def test_every_bare_integer_traces_to_stats(self, md_path: Path):
         stats = _load_stats()
-        known = _flatten_numbers(stats) | _load_allowlist()
+        known = _flatten_numbers(stats)
         found = _extract_prose_integers(md_path.read_text())
         untraced = sorted(found - known)
         assert not untraced, (
-            f"{md_path.relative_to(REPO_ROOT)} has bare integer(s) not in corpus_stats.json "
-            f"or results/stats_allowlist.txt: {untraced} - either the doc is stale "
-            f"(regenerate from corpus_stats.json) or these are legitimate exceptions "
-            f"(years, tool versions, k-values) that need an explicit allowlist entry"
+            f"{md_path.relative_to(REPO_ROOT)} has bare integer(s) not in corpus_stats.json: "
+            f"{untraced} - the doc is stale and needs regenerating from corpus_stats.json. "
+            f"If this is a genuinely historical figure from a superseded corpus, move the file "
+            f"to docs/validation/ with a stats-scope header instead of allowlisting it."
+        )
+
+
+class TestValidationDocsAreLabeled:
+    """docs/validation/*.md holds historical figures from superseded corpora
+    (e.g. the 20-task probe_signal_fsm containment probe, corpus_v1's COI
+    gate) - each file must say so, explicitly and machine-checkably, via a
+    stats-scope header naming the exact commit it was measured against."""
+
+    @pytest.mark.parametrize(
+        "md_path",
+        sorted(VALIDATION_DIR.rglob("*.md")) if VALIDATION_DIR.exists() else [],
+        ids=lambda p: str(p.relative_to(REPO_ROOT)) if VALIDATION_DIR.exists() else "no-validation-dir",
+    )
+    def test_has_well_formed_stats_scope_header(self, md_path: Path):
+        lines = md_path.read_text().splitlines()
+        header_lines = [l for l in lines[:3] if l.strip()]
+        assert header_lines, f"{md_path.relative_to(REPO_ROOT)} is empty"
+        m = _STATS_SCOPE_RE.match(header_lines[0])
+        assert m, (
+            f"{md_path.relative_to(REPO_ROOT)}'s first non-blank line must be a well-formed "
+            f"stats-scope header: <!-- stats-scope: historical, corpus=<sha-or-UNKNOWN>, "
+            f"date=<iso-utc-or-UNKNOWN> --> (got: {header_lines[0]!r})"
+        )
+        corpus_sha = m.group(1)
+        assert corpus_sha == "UNKNOWN" or re.fullmatch(r"[0-9a-f]{7,40}", corpus_sha), (
+            f"{md_path.relative_to(REPO_ROOT)}: corpus={corpus_sha!r} is neither UNKNOWN "
+            f"nor a plausible git SHA"
         )

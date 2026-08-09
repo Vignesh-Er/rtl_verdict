@@ -1,4 +1,13 @@
+<!-- stats-scope: historical, corpus=15539b0f928ece4b050084ed3c8933bd1a7905cd, date=2026-08-08T17:39:57Z -->
+
 # COI containment rate by operator class
+
+**Historical validation record - not a live figure.** Measured against the
+`probe_signal_fsm` probe corpus (21 candidates, SIGNAL+FSM operators only),
+a corpus superseded by corpus_v2 + the fifo addition before this file was
+relocated here. The 10/10 below does not describe the current 171-task
+corpus and must not be quoted as if it did - see
+`results/corpus_stats.json` for current corpus figures instead.
 
 Probe run (per your instruction: test the two hardest classes on a small
 sample BEFORE scaling, not after). 21 candidates generated (SIGNAL + FSM
