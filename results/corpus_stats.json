@@ -1,9 +1,9 @@
 {
   "provenance": {
     "script": "scripts/build_stats.py",
-    "generated_at_utc": "2026-08-09T06:02:12Z",
+    "generated_at_utc": "2026-08-09T06:44:08Z",
     "git": {
-      "commit_sha": "f86778d86e160f6d7d2f0838e8cf32352d5210de",
+      "commit_sha": "05bb13e4f3dec000c5d8714a9014d239b8648c0d",
       "dirty": true
     },
     "host_os": "win32",
@@ -14,7 +14,8 @@
         "benchmarks\\corpus_v2_fifo_addition\\tasks.json"
       ],
       "operators": "same tasks.json files, grouped by operator field",
-      "silent_bug_rate": "derived from designs[].verdicts",
+      "silent_bug_rate": "derived from designs[].verdicts; range/excluding_highest_design are computed sensitivity checks, not independently-sourced data",
+      "coverage[].raw": "same fresh Verilator coverage build as coverage[], parsed without the dut_file filter",
       "equivalent_mutant_promotion": "benchmarks/corpus_v2/deep_bmc_promotions.json",
       "divergence_depth_histogram_keep": "tasks.json KEEP records' divergence_cycle field",
       "coverage": "fresh verilator --binary --coverage build+run, this run, DUT-only filtered (rtlverdict.eval.coverage)",
@@ -103,7 +104,12 @@
         "QUARANTINE": 60,
         "SILENT": 3,
         "ERROR": 2
-      }
+      },
+      "real_bugs_n": 3,
+      "silent_rate_pct": 100.0,
+      "evaluated_n": 63,
+      "equivalent_n": 60,
+      "equivalent_rate_pct": 95.2
     },
     {
       "name": "constant_perturbation",
@@ -112,14 +118,24 @@
         "QUARANTINE": 6,
         "SILENT": 13,
         "KEEP": 21
-      }
+      },
+      "real_bugs_n": 34,
+      "silent_rate_pct": 38.2,
+      "evaluated_n": 40,
+      "equivalent_n": 6,
+      "equivalent_rate_pct": 15.0
     },
     {
       "name": "edge_swap",
       "candidates": 4,
       "verdicts": {
         "QUARANTINE": 4
-      }
+      },
+      "real_bugs_n": 0,
+      "silent_rate_pct": null,
+      "evaluated_n": 4,
+      "equivalent_n": 4,
+      "equivalent_rate_pct": 100.0
     },
     {
       "name": "next_state_redirect",
@@ -128,7 +144,12 @@
         "KEEP": 8,
         "SILENT": 5,
         "QUARANTINE": 3
-      }
+      },
+      "real_bugs_n": 13,
+      "silent_rate_pct": 38.5,
+      "evaluated_n": 16,
+      "equivalent_n": 3,
+      "equivalent_rate_pct": 18.8
     },
     {
       "name": "operator_swap",
@@ -137,7 +158,12 @@
         "SILENT": 5,
         "QUARANTINE": 7,
         "KEEP": 10
-      }
+      },
+      "real_bugs_n": 15,
+      "silent_rate_pct": 33.3,
+      "evaluated_n": 22,
+      "equivalent_n": 7,
+      "equivalent_rate_pct": 31.8
     },
     {
       "name": "signal_substitution",
@@ -146,7 +172,12 @@
         "QUARANTINE": 4,
         "SILENT": 6,
         "KEEP": 14
-      }
+      },
+      "real_bugs_n": 20,
+      "silent_rate_pct": 30.0,
+      "evaluated_n": 24,
+      "equivalent_n": 4,
+      "equivalent_rate_pct": 16.7
     }
   ],
   "silent_bug_rate": {
@@ -183,13 +214,30 @@
         "n": 22,
         "rate_pct": 13.6
       }
-    ]
+    ],
+    "range": {
+      "min_pct": 13.6,
+      "min_design": "fifo",
+      "max_pct": 72.2,
+      "max_design": "fsm",
+      "ratio_max_over_min": 5.3
+    },
+    "excluding_highest_design": {
+      "excluded_design": "fsm",
+      "numerator": 19,
+      "denominator": 67,
+      "rate_pct": 28.4
+    }
   },
   "equivalent_mutant_promotion": {
     "quarantined_count": 69,
     "promoted_count": 0,
+    "still_proven_bmc_count": 66,
+    "still_indeterminate_count": 3,
     "k_original": 40,
     "k_deep": 200,
+    "timeout_s": 150,
+    "near_timeout_threshold_pct": 80,
     "designs_checked": [
       "fsm",
       "spi_master",
@@ -279,6 +327,24 @@
       "expr": {
         "hit": 2,
         "total": 2
+      },
+      "raw": {
+        "line": {
+          "hit": 14,
+          "total": 16
+        },
+        "toggle": {
+          "hit": 27,
+          "total": 30
+        },
+        "branch": {
+          "hit": 10,
+          "total": 12
+        },
+        "expr": {
+          "hit": 7,
+          "total": 12
+        }
       }
     },
     {
@@ -298,6 +364,24 @@
       "expr": {
         "hit": 2,
         "total": 2
+      },
+      "raw": {
+        "line": {
+          "hit": 16,
+          "total": 18
+        },
+        "toggle": {
+          "hit": 39,
+          "total": 98
+        },
+        "branch": {
+          "hit": 8,
+          "total": 10
+        },
+        "expr": {
+          "hit": 6,
+          "total": 9
+        }
       }
     },
     {
@@ -317,6 +401,24 @@
       "expr": {
         "hit": 4,
         "total": 4
+      },
+      "raw": {
+        "line": {
+          "hit": 15,
+          "total": 17
+        },
+        "toggle": {
+          "hit": 55,
+          "total": 86
+        },
+        "branch": {
+          "hit": 12,
+          "total": 14
+        },
+        "expr": {
+          "hit": 12,
+          "total": 16
+        }
       }
     },
     {
@@ -336,6 +438,24 @@
       "expr": {
         "hit": 10,
         "total": 11
+      },
+      "raw": {
+        "line": {
+          "hit": 14,
+          "total": 15
+        },
+        "toggle": {
+          "hit": 108,
+          "total": 232
+        },
+        "branch": {
+          "hit": 8,
+          "total": 10
+        },
+        "expr": {
+          "hit": 15,
+          "total": 18
+        }
       }
     }
   ],

@@ -137,7 +137,27 @@ def _operator_stats() -> list[dict]:
         by_op[op][t["forge_decision"]] += 1
     result = []
     for op, verdicts in sorted(by_op.items()):
-        result.append({"name": op, "candidates": sum(verdicts.values()), "verdicts": dict(verdicts)})
+        keep = verdicts.get("KEEP", 0)
+        silent = verdicts.get("SILENT", 0)
+        quarantine = verdicts.get("QUARANTINE", 0)
+        error = verdicts.get("ERROR", 0)
+        real_bugs_n = keep + silent
+        # ERROR candidates never reached formal verification at all (rejected
+        # by the fidelity guard beforehand) - they belong in neither the
+        # "real bug" nor the "equivalent" bucket, so both rates below exclude
+        # them from the denominator (evaluated_n = candidates - error), not
+        # just from their own numerator.
+        evaluated_n = sum(verdicts.values()) - error
+        result.append({
+            "name": op,
+            "candidates": sum(verdicts.values()),
+            "verdicts": dict(verdicts),
+            "real_bugs_n": real_bugs_n,
+            "silent_rate_pct": round(100.0 * silent / real_bugs_n, 1) if real_bugs_n else None,
+            "evaluated_n": evaluated_n,
+            "equivalent_n": quarantine,
+            "equivalent_rate_pct": round(100.0 * quarantine / evaluated_n, 1) if evaluated_n else None,
+        })
     return result
 
 
@@ -160,6 +180,18 @@ def _silent_bug_rate(designs_data: list[dict]) -> dict:
         total_keep += keep
         total_silent += silent
     n_total = total_keep + total_silent
+
+    rates = [d["rate_pct"] for d in per_design if d["rate_pct"] is not None]
+    max_d = max(per_design, key=lambda d: d["rate_pct"] if d["rate_pct"] is not None else -1)
+    min_d = min(per_design, key=lambda d: d["rate_pct"] if d["rate_pct"] is not None else 1e9)
+
+    # sensitivity: pooled rate excluding whichever design has the highest
+    # rate (the one most likely to dominate the pooled figure) - computed
+    # here, not left for a document to compute ad hoc, so it's traceable.
+    without_max = [d for d in per_design if d["design"] != max_d["design"]]
+    num_wo_max = sum(d["silent"] for d in without_max)
+    den_wo_max = sum(d["n"] for d in without_max)
+
     return {
         "definition": (
             "SILENT = a mutant formally REFUTED (verdict proves a real behavioral divergence "
@@ -171,17 +203,39 @@ def _silent_bug_rate(designs_data: list[dict]) -> dict:
         "denominator": n_total,
         "rate_pct": round(100.0 * total_silent / n_total, 1) if n_total else None,
         "per_design": per_design,
+        "range": {
+            "min_pct": min(rates) if rates else None,
+            "min_design": min_d["design"],
+            "max_pct": max(rates) if rates else None,
+            "max_design": max_d["design"],
+            "ratio_max_over_min": round(max(rates) / min(rates), 1) if rates and min(rates) else None,
+        },
+        "excluding_highest_design": {
+            "excluded_design": max_d["design"],
+            "numerator": num_wo_max,
+            "denominator": den_wo_max,
+            "rate_pct": round(100.0 * num_wo_max / den_wo_max, 1) if den_wo_max else None,
+        },
     }
 
 
 def _equivalent_mutant_promotion() -> dict:
     promotions = json.loads((REPO_ROOT / "benchmarks/corpus_v2/deep_bmc_promotions.json").read_text())
     promoted = [p for p in promotions if p["decision"] == "PROMOTE"]
+    still_indeterminate = [p for p in promotions if p["new_verdict"] == "INDETERMINATE"]
+    still_proven_bmc = [p for p in promotions if p["new_verdict"] == "PROVEN-BMC"]
     return {
         "quarantined_count": len(promotions),
         "promoted_count": len(promoted),
+        "still_proven_bmc_count": len(still_proven_bmc),
+        "still_indeterminate_count": len(still_indeterminate),
         "k_original": 40,
         "k_deep": 200,
+        # forge/deep_bmc_promote.py's own constants (K/TIMEOUT_S/
+        # NEAR_TIMEOUT_FRACTION) - persisted here so a document citing them
+        # never hand-types a methodology parameter.
+        "timeout_s": 150,
+        "near_timeout_threshold_pct": 80,
         "designs_checked": sorted({p["design"] for p in promotions}),
         "note": (
             "fifo's QUARANTINE pool was not re-checked at deep k - its own k=25 first pass is "
@@ -251,16 +305,18 @@ def _coverage() -> list[dict]:
         if "RTLVERDICT_RESULT: PASS" not in run.stdout:
             raise RuntimeError(f"golden {name} did not PASS its own testbench during coverage run: {run.stdout[-500:]}")
 
-        summary = parse_coverage_dat(work / "coverage.dat", dut_file=f"{name}.v")
-        results.append(
-            {
-                "design": name,
-                "line": {"hit": summary.by_type["line"][0], "total": summary.by_type["line"][1]},
-                "toggle": {"hit": summary.by_type["toggle"][0], "total": summary.by_type["toggle"][1]},
-                "branch": {"hit": summary.by_type["branch"][0], "total": summary.by_type["branch"][1]},
-                "expr": {"hit": summary.by_type["expr"][0], "total": summary.by_type["expr"][1]},
-            }
-        )
+        # DUT-only (dut_file filter) is the figure used everywhere else in
+        # this project; raw (unfiltered, includes testbench-internal
+        # variables) is kept alongside it so the raw->DUT-only correction
+        # story (uart: 39.8%->50.0%) is traceable to this file, not typed
+        # from memory - see FINDINGS.md and results/silent_bugs.md.
+        dut_only = parse_coverage_dat(work / "coverage.dat", dut_file=f"{name}.v")
+        raw = parse_coverage_dat(work / "coverage.dat", dut_file=None)
+
+        def _pack(summary):
+            return {t: {"hit": summary.by_type[t][0], "total": summary.by_type[t][1]} for t in ("line", "toggle", "branch", "expr")}
+
+        results.append({"design": name, **_pack(dut_only), "raw": _pack(raw)})
     return results
 
 
@@ -293,7 +349,8 @@ def main() -> None:
                 "designs[].generated/distinct": "fresh regeneration of mutation candidates via forge operators, this run - never read from a log",
                 "designs[].recorded/verdicts": [str(p.relative_to(REPO_ROOT)) for p in {str(p): p for p in CORPUS_FILES.values()}.values()],
                 "operators": "same tasks.json files, grouped by operator field",
-                "silent_bug_rate": "derived from designs[].verdicts",
+                "silent_bug_rate": "derived from designs[].verdicts; range/excluding_highest_design are computed sensitivity checks, not independently-sourced data",
+                "coverage[].raw": "same fresh Verilator coverage build as coverage[], parsed without the dut_file filter",
                 "equivalent_mutant_promotion": "benchmarks/corpus_v2/deep_bmc_promotions.json",
                 "divergence_depth_histogram_keep": "tasks.json KEEP records' divergence_cycle field",
                 "coverage": "fresh verilator --binary --coverage build+run, this run, DUT-only filtered (rtlverdict.eval.coverage)",
