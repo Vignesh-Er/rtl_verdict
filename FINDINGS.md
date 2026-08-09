@@ -467,3 +467,22 @@ somehow did break parsing would already be caught and rejected by
 reaching `run_sim` (recorded as ERROR, not silently reclassified as
 SIM-INVALID). SIM-INVALID=0 is a property of this operator set, not a
 broken code path.
+
+## Parked / unquotable
+
+Figures that must never appear in README, the dashboard, the paper
+skeleton, or slides without their scope caveat attached — parked here so
+they can't leak by being copied from an old doc without context.
+
+- **COI containment ("10/10 contained").** Both source documents —
+  `docs/validation/containment_by_operator_class.md` and
+  `docs/validation/coi_soundness.md` — are historical: measured on
+  `probe_signal_fsm` (a 10-task probe corpus) and `corpus_v1`
+  respectively, neither of which is the current corpus (`corpus_v2` +
+  the fifo addition, 171 tasks). Both carry a `stats-scope: historical`
+  header and are excluded from the bare-integer sweep in
+  `test_stats_consistency.py` for exactly this reason. **COI containment
+  has not been re-measured on the current 171-task corpus.** Any claim
+  of "COI backward slices contain N/N known-divergence signals" on the
+  current corpus is unquotable until that measurement is re-run against
+  `corpus_v2`/fifo and produces a fresh, non-historical result.

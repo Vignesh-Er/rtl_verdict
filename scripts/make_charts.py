@@ -87,11 +87,14 @@ def fig1_verdict_composition(stats: dict) -> None:
 
 
 def fig2_silent_vs_coverage(stats: dict) -> None:
-    """THE MONEY CHART: silent % per design as bars, DUT-only toggle coverage
-    as overlaid points on a second axis. Both axes deliberately pinned to the
-    same 0-100% range (both are percentages) specifically to minimize the
-    usual dual-axis distortion - and every bar/point is direct-labeled so
-    the reader is never dependent on reading either axis precisely.
+    """Silent % per design as bars, DUT-only toggle coverage as overlaid
+    points - both on ONE shared 0-100% axis (not a dual-axis chart; see
+    results/silent_bugs.md §5 - the two designs' toggle-point denominators
+    span 9.4x, so this is deliberately NOT presented as a correlation claim,
+    just two same-unit measurements placed at comparable height). Every
+    bar/point is direct-labeled with its own count/denominator so the reader
+    is never dependent on reading the axis precisely or inferring precision
+    that isn't there.
     """
     sbr = stats["silent_bug_rate"]
     cov_by_design = {c["design"]: c["toggle"] for c in stats["coverage"]}
@@ -100,34 +103,37 @@ def fig2_silent_vs_coverage(stats: dict) -> None:
     silent_pct = [d["rate_pct"] for d in per_design]
     cov_pct = [round(100.0 * cov_by_design[d["design"]]["hit"] / cov_by_design[d["design"]]["total"], 1) for d in per_design]
 
-    fig, ax1 = plt.subplots(figsize=(7, 4.8))
-    ax2 = ax1.twinx()
+    fig, ax = plt.subplots(figsize=(7.2, 5.0))
 
-    # Silent-rate labels sit INSIDE their own bar (white text near the top),
-    # not floating above it - keeps them structurally separated from the
-    # coverage-point labels on the second axis regardless of how close the
-    # two values happen to be for a given design (found by rendering and
-    # looking: a first version floated both labels above their marks and
-    # they collided for fsm/spi_master, where bar and point sit close in
-    # height - see FINDINGS.md/git history for this file).
-    bars = ax1.bar(names, silent_pct, color=VERDICT_COLORS["SILENT"], width=0.5, label="silent-bug rate (%)")
+    bars = ax.bar(names, silent_pct, color=VERDICT_COLORS["SILENT"], width=0.5, label="silent-bug rate (%)", zorder=2)
     for bar, pct, d in zip(bars, silent_pct, per_design):
-        ax1.text(bar.get_x() + bar.get_width() / 2, pct - 3, f"{pct}%\n(n={d['n']})", ha="center", va="top", fontsize=8.5, color="white")
+        ax.text(bar.get_x() + bar.get_width() / 2, pct - 3, f"{pct}%\n(n={d['n']})", ha="center", va="top", fontsize=8.5, color="white", zorder=4)
 
-    ax2.scatter(names, cov_pct, color=CATEGORICAL["series_1"], s=90, zorder=5, label="DUT-only toggle coverage (%)")
-    for x, pct in zip(names, cov_pct):
-        ax2.annotate(f"{pct}%", (x, pct), textcoords="offset points", xytext=(0, -14), ha="center", fontsize=8.5, color=CATEGORICAL["series_1"])
+    ax.scatter(names, cov_pct, color=CATEGORICAL["series_1"], s=110, zorder=5, edgecolors=CHROME["surface"], linewidths=1.2, label="DUT-only toggle coverage (%)")
+    for x, pct, d in zip(names, cov_pct, per_design):
+        cov = cov_by_design[d["design"]]
+        # place above if the point sits clear of its own bar top, else below -
+        # keeps the coverage label from overlapping the silent-rate label
+        # inside the bar (checked by rendering and looking - see caption).
+        above = pct > d["rate_pct"] - 8
+        ax.annotate(
+            f"{pct}% ({cov['hit']}/{cov['total']})", (x, pct),
+            textcoords="offset points", xytext=(0, 10 if above else -16),
+            ha="center", fontsize=8.5, color=CATEGORICAL["series_1"], zorder=6,
+        )
 
-    ax1.set_ylim(0, 100)
-    ax2.set_ylim(0, 100)
-    ax1.set_ylabel("silent-bug rate (%)", color=VERDICT_COLORS["SILENT"])
-    ax2.set_ylabel("DUT-only toggle coverage (%)", color=CATEGORICAL["series_1"])
-    ax1.tick_params(axis="y", labelcolor=VERDICT_COLORS["SILENT"])
-    ax2.tick_params(axis="y", labelcolor=CATEGORICAL["series_1"])
-    ax1.set_title("Silent-bug rate vs. DUT-only toggle coverage, per design")
-    ax1.spines[["top"]].set_visible(False)
-    ax2.spines[["top"]].set_visible(False)
-    fig.text(0.01, -0.03, f"n = {sbr['denominator']} real bugs (KEEP+SILENT) pooled across {len(per_design)} designs, n=18-25 per design. See results/silent_bugs.md §5 - n=4 designs, no correlation statistic computed.", fontsize=8, color=CHROME["muted_ink"])
+    ax.set_ylim(0, 108)
+    ax.set_ylabel("percent (0-100%, one shared axis for both series)")
+    ax.set_title("Silent-bug rate vs. DUT-only toggle coverage, per design")
+    ax.legend(loc="upper left", frameon=False, fontsize=9)
+    ax.spines[["top", "right"]].set_visible(False)
+    fig.text(
+        0.01, -0.04,
+        f"n = {sbr['denominator']} real bugs (KEEP+SILENT) across {len(per_design)} designs, n=18-25 per design. "
+        f"Toggle-point denominators span 9.4x (20-188) across designs - not a like-for-like comparison. "
+        f"See results/silent_bugs.md §5/§5.1 - suggestive pattern only (exact permutation p=0.083, n=4), not a correlation claim.",
+        fontsize=7.5, color=CHROME["muted_ink"], wrap=True,
+    )
     _save(fig, "fig2_silent_rate_vs_coverage")
 
 

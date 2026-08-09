@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -89,10 +90,45 @@ def _fresh_generated_distinct(design: str) -> tuple[int, int]:
     return len(all_candidates), len(seen)
 
 
+_STAT_SECTION_RE = re.compile(r"^=== \S+ ===\s*$", re.MULTILINE)
+_STAT_PUBLIC_WIRES_RE = re.compile(r"^\s*(\d+)\s+public wires\s*$", re.MULTILINE)
+_STAT_CELLS_RE = re.compile(r"^\s*(\d+)\s+cells\s*$", re.MULTILINE)
+
+
+def _design_size(name: str) -> dict:
+    """DUT signal count (Yosys 'public wires' - named signals, not synthesis
+    temporaries) and total cell count, from a real `yosys ... synth; stat`
+    run - never typed. Parses the LAST '=== name ===' stat block (synth
+    prints one mid-flow and one after CHECK; the later one is the settled
+    post-synthesis count).
+    """
+    e = env.build_subprocess_env()
+    yosys = shutil.which("yosys.exe", path=e["PATH"])
+    if yosys is None:
+        raise RuntimeError("yosys.exe not found on PATH built by rtlverdict.env")
+    proc = subprocess.run(
+        [yosys, "-p", f"read_verilog designs/{name}/{name}.v; synth -top {name}; stat"],
+        cwd=REPO_ROOT, env=e, capture_output=True, text=True, timeout=60,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"yosys stat failed for {name}:\n{proc.stderr[-1000:]}")
+    out = proc.stdout
+    sections = list(_STAT_SECTION_RE.finditer(out))
+    if not sections:
+        raise RuntimeError(f"yosys stat produced no '=== {name} ===' section for {name}:\n{out[-1000:]}")
+    tail = out[sections[-1].start():]
+    wires_m = _STAT_PUBLIC_WIRES_RE.search(tail)
+    cells_m = _STAT_CELLS_RE.search(tail)
+    if not wires_m or not cells_m:
+        raise RuntimeError(f"could not parse public-wires/cells from yosys stat output for {name}:\n{tail[:800]}")
+    return {"dut_signal_count": int(wires_m.group(1)), "cell_count": int(cells_m.group(1))}
+
+
 def _design_stats() -> list[dict]:
     out = []
     for name, tier, formal_k in DESIGNS:
         loc = len((REPO_ROOT / "designs" / name / f"{name}.v").read_text().splitlines())
+        size = _design_size(name)
         tasks = json.loads(CORPUS_FILES[name].read_text())
         tasks_for_design = [t for t in tasks if t["design"] == name]
         generated, distinct = _fresh_generated_distinct(name)
@@ -117,6 +153,8 @@ def _design_stats() -> list[dict]:
                 "name": name,
                 "tier": tier,
                 "loc": loc,
+                "dut_signal_count": size["dut_signal_count"],
+                "cell_count": size["cell_count"],
                 "formal_k": formal_k,
                 "generated": generated,
                 "distinct": distinct,
@@ -217,6 +255,90 @@ def _silent_bug_rate(designs_data: list[dict]) -> dict:
             "rate_pct": round(100.0 * num_wo_max / den_wo_max, 1) if den_wo_max else None,
         },
     }
+
+
+def _coverage_rank_correlation(designs_data: list[dict], coverage_data: list[dict], silent_per_design: list[dict]) -> dict:
+    """Exact permutation test on whether the (toggle coverage, silent rate)
+    ranking across the 4 designs could arise by chance. n=4 -> 4! = 24
+    possible orderings of silent-rate rank when designs are fixed in
+    coverage-rank order; exactly 2 of those 24 are perfectly monotone
+    (strictly ascending or strictly descending) - computed here via
+    itertools.permutations, never hand-counted, and cross-checked against
+    the closed form 2/n! at import time via the assert below.
+    """
+    import itertools
+
+    cov_by_design = {c["design"]: c["toggle"] for c in coverage_data}
+    rows = []
+    for d in silent_per_design:
+        cov = cov_by_design[d["design"]]
+        cov_pct = 100.0 * cov["hit"] / cov["total"] if cov["total"] else None
+        rows.append((d["design"], cov_pct, d["rate_pct"]))
+    rows_by_cov = sorted(rows, key=lambda r: r[1])
+    silent_ranks = [r[2] for r in rows_by_cov]
+
+    n = len(silent_ranks)
+    all_perms = list(itertools.permutations(silent_ranks))
+    n_permutations = len(all_perms)
+    n_monotone = sum(
+        1 for p in all_perms
+        if all(p[i] < p[i + 1] for i in range(n - 1)) or all(p[i] > p[i + 1] for i in range(n - 1))
+    )
+    assert n_permutations == 24 and n_monotone == 2, (
+        f"permutation test constants drifted: n_permutations={n_permutations}, n_monotone={n_monotone} "
+        f"- corpus size or design count changed, re-derive the quoted p-value by hand before trusting it"
+    )
+    p_value = round(n_monotone / n_permutations, 3)
+
+    return {
+        "method": (
+            "Exact two-sided permutation test: with n=4 designs fixed in ascending toggle-coverage "
+            "order, is the observed silent-rate ordering (also monotone here) one of the extreme "
+            "(fully-sorted) permutations, or typical of the full permutation space?"
+        ),
+        "designs_by_coverage_rank": [r[0] for r in rows_by_cov],
+        "n_designs": n,
+        "n_permutations": n_permutations,
+        "n_monotone": n_monotone,
+        "p_value_two_sided": p_value,
+        "note": (
+            "Suggestive, not evidence: n=4 is too small for this p-value to license a causal claim, "
+            "and it says nothing about WHY the two variables move together (see silent_rate_by_design_operator "
+            "and results/silent_bugs.md SS5.1 for the design-class-confound analysis)."
+        ),
+    }
+
+
+def _silent_rate_by_design_operator() -> list[dict]:
+    """Per-(design, operator) KEEP/SILENT breakdown - the granularity needed
+    to tell whether an elevated silent rate is a general (operator-agnostic)
+    property of a design, or concentrated in specific operator classes (the
+    hypothesis-A-vs-B question in results/silent_bugs.md SS5.1). Raw counts
+    only; most cells here are n<10 and are reported as such, never smoothed.
+    """
+    all_tasks = []
+    for path in {str(p): p for p in CORPUS_FILES.values()}.values():
+        all_tasks.extend(json.loads(path.read_text()))
+    by_cell: dict[tuple[str, str], dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    for t in all_tasks:
+        op = t["operator"].split(".")[-1]
+        by_cell[(t["design"], op)][t["forge_decision"]] += 1
+    result = []
+    for (design, op), verdicts in sorted(by_cell.items()):
+        keep = verdicts.get("KEEP", 0)
+        silent = verdicts.get("SILENT", 0)
+        n = keep + silent
+        if n == 0:
+            continue  # this (design, operator) cell has no real bugs to rate (all QUARANTINE/ERROR)
+        result.append({
+            "design": design,
+            "operator": op,
+            "keep": keep,
+            "silent": silent,
+            "n": n,
+            "silent_rate_pct": round(100.0 * silent / n, 1),
+        })
+    return result
 
 
 def _equivalent_mutant_promotion() -> dict:
@@ -328,11 +450,13 @@ def main() -> None:
     print(f"  design stats: {[(d['name'], d['recorded']) for d in designs_data]}")
     operator_data = _operator_stats()
     silent_bug = _silent_bug_rate(designs_data)
+    silent_by_design_operator = _silent_rate_by_design_operator()
     equiv_promo = _equivalent_mutant_promotion()
     depth_hist = _divergence_depth_histogram()
     print("  running fresh coverage builds (4 designs)...")
     coverage_data = _coverage()
     print(f"  coverage (DUT-only toggle): {[(c['design'], c['toggle']) for c in coverage_data]}")
+    silent_bug["coverage_rank_correlation"] = _coverage_rank_correlation(designs_data, coverage_data, silent_bug["per_design"])
 
     total_generated = sum(d["generated"] for d in designs_data)
     total_distinct = sum(d["distinct"] for d in designs_data)
@@ -347,9 +471,12 @@ def main() -> None:
             "host_os": sys.platform,
             "field_sources": {
                 "designs[].generated/distinct": "fresh regeneration of mutation candidates via forge operators, this run - never read from a log",
+                "designs[].dut_signal_count/cell_count": "live `yosys -p synth;stat` run this run, last '=== name ===' section parsed",
                 "designs[].recorded/verdicts": [str(p.relative_to(REPO_ROOT)) for p in {str(p): p for p in CORPUS_FILES.values()}.values()],
                 "operators": "same tasks.json files, grouped by operator field",
                 "silent_bug_rate": "derived from designs[].verdicts; range/excluding_highest_design are computed sensitivity checks, not independently-sourced data",
+                "silent_bug_rate.coverage_rank_correlation": "exact permutation test (itertools.permutations) over silent_bug_rate.per_design x coverage[].toggle, computed this run",
+                "silent_rate_by_design_operator": "same tasks.json files as operators[], grouped by (design, operator) instead of operator alone",
                 "coverage[].raw": "same fresh Verilator coverage build as coverage[], parsed without the dut_file filter",
                 "equivalent_mutant_promotion": "benchmarks/corpus_v2/deep_bmc_promotions.json",
                 "divergence_depth_histogram_keep": "tasks.json KEEP records' divergence_cycle field",
@@ -361,6 +488,7 @@ def main() -> None:
         "designs": designs_data,
         "operators": operator_data,
         "silent_bug_rate": silent_bug,
+        "silent_rate_by_design_operator": silent_by_design_operator,
         "equivalent_mutant_promotion": equiv_promo,
         "divergence_depth_histogram_keep": depth_hist,
         "coverage": coverage_data,
