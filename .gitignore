@@ -26,3 +26,12 @@ designs/*/*_eqy/
 designs/*/*_mutant_eqy/
 
 results/environment.json.bak
+
+# agent-pilot per-task working dirs: sby/BMC intermediates and witness-tool
+# VCD scratch, both regenerable by re-running scripts/agent_pilot_plumbing.py
+# or run_smoke.py - only trajectory.json/submitted_patch.v (the actual
+# transcript) are committed, same "working dirs are not committed" rule as
+# the block above.
+results/agent_pilot/transcripts/*/*/formal/
+results/agent_pilot/transcripts/*/*/tools/
+results/agent_pilot/transcripts/_caps_demo/*/tools/

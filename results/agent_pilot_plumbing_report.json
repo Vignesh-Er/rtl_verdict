@@ -1,0 +1,299 @@
+{
+  "purpose": "PLUMBING TEST ONLY - proves harness wiring, not agent capability. No API key was available. See results/agent_pilot.md.",
+  "stub_model_name": "stub-golden-revert-v1",
+  "n_tasks_selected": 12,
+  "n_designs": 4,
+  "n_per_design_target": 3,
+  "arms": [
+    "A",
+    "B"
+  ],
+  "caps": {
+    "max_iterations": 15,
+    "max_tokens_per_turn": 4096,
+    "max_total_tokens": 100000,
+    "max_wall_time_s": 600.0,
+    "seed": 0
+  },
+  "pass1": {
+    "run_fresh": 0,
+    "cached": 24
+  },
+  "pass2_resumability_check": {
+    "run_fresh": 0,
+    "cached": 24
+  },
+  "verdict_distribution": {
+    "PLAUSIBLE": 24
+  },
+  "all_verdicts_plausible_as_expected": true,
+  "cost_usd": 0,
+  "wall_time_summary": {
+    "overall": {
+      "min_s": 1.67,
+      "max_s": 35.15,
+      "sum_s": 246.75
+    },
+    "by_design": {
+      "fifo": {
+        "min_s": 33.96,
+        "max_s": 35.15,
+        "mean_s": 34.25,
+        "n": 6
+      },
+      "fsm": {
+        "min_s": 1.67,
+        "max_s": 2.18,
+        "mean_s": 1.97,
+        "n": 6
+      },
+      "spi_master": {
+        "min_s": 2.13,
+        "max_s": 2.56,
+        "mean_s": 2.36,
+        "n": 6
+      },
+      "uart": {
+        "min_s": 2.41,
+        "max_s": 2.66,
+        "mean_s": 2.55,
+        "n": 6
+      }
+    }
+  },
+  "cap_trip_demo": {
+    "task_id": "fifo_operator_swap_004",
+    "max_iterations_set": 3,
+    "stop_reason": "max_iterations",
+    "final_verdict": "NO-PATCH",
+    "iterations_run": 3,
+    "wall_time_s": 1.101
+  },
+  "example_task": {
+    "task_id": "fsm_constant_perturbation_005",
+    "design": "fsm",
+    "arm": "A",
+    "divergence_cycle": 2,
+    "verdict": "PLAUSIBLE",
+    "wall_time_s": 2.18,
+    "cached": true
+  },
+  "results": [
+    {
+      "task_id": "fifo_operator_swap_004",
+      "design": "fifo",
+      "arm": "A",
+      "divergence_cycle": 1,
+      "verdict": "PLAUSIBLE",
+      "wall_time_s": 35.15,
+      "cached": true
+    },
+    {
+      "task_id": "fifo_operator_swap_004",
+      "design": "fifo",
+      "arm": "B",
+      "divergence_cycle": 1,
+      "verdict": "PLAUSIBLE",
+      "wall_time_s": 33.971,
+      "cached": true
+    },
+    {
+      "task_id": "fifo_signal_substitution_037",
+      "design": "fifo",
+      "arm": "A",
+      "divergence_cycle": 2,
+      "verdict": "PLAUSIBLE",
+      "wall_time_s": 34.11,
+      "cached": true
+    },
+    {
+      "task_id": "fifo_signal_substitution_037",
+      "design": "fifo",
+      "arm": "B",
+      "divergence_cycle": 2,
+      "verdict": "PLAUSIBLE",
+      "wall_time_s": 33.96,
+      "cached": true
+    },
+    {
+      "task_id": "fifo_signal_substitution_033",
+      "design": "fifo",
+      "arm": "A",
+      "divergence_cycle": 10,
+      "verdict": "PLAUSIBLE",
+      "wall_time_s": 34.14,
+      "cached": true
+    },
+    {
+      "task_id": "fifo_signal_substitution_033",
+      "design": "fifo",
+      "arm": "B",
+      "divergence_cycle": 10,
+      "verdict": "PLAUSIBLE",
+      "wall_time_s": 34.14,
+      "cached": true
+    },
+    {
+      "task_id": "fsm_constant_perturbation_005",
+      "design": "fsm",
+      "arm": "A",
+      "divergence_cycle": 2,
+      "verdict": "PLAUSIBLE",
+      "wall_time_s": 2.18,
+      "cached": true
+    },
+    {
+      "task_id": "fsm_constant_perturbation_005",
+      "design": "fsm",
+      "arm": "B",
+      "divergence_cycle": 2,
+      "verdict": "PLAUSIBLE",
+      "wall_time_s": 1.67,
+      "cached": true
+    },
+    {
+      "task_id": "fsm_constant_perturbation_008",
+      "design": "fsm",
+      "arm": "A",
+      "divergence_cycle": 2,
+      "verdict": "PLAUSIBLE",
+      "wall_time_s": 1.911,
+      "cached": true
+    },
+    {
+      "task_id": "fsm_constant_perturbation_008",
+      "design": "fsm",
+      "arm": "B",
+      "divergence_cycle": 2,
+      "verdict": "PLAUSIBLE",
+      "wall_time_s": 2.06,
+      "cached": true
+    },
+    {
+      "task_id": "fsm_next_state_redirect_032",
+      "design": "fsm",
+      "arm": "A",
+      "divergence_cycle": 2,
+      "verdict": "PLAUSIBLE",
+      "wall_time_s": 2.03,
+      "cached": true
+    },
+    {
+      "task_id": "fsm_next_state_redirect_032",
+      "design": "fsm",
+      "arm": "B",
+      "divergence_cycle": 2,
+      "verdict": "PLAUSIBLE",
+      "wall_time_s": 1.96,
+      "cached": true
+    },
+    {
+      "task_id": "spi_master_constant_perturbation_003",
+      "design": "spi_master",
+      "arm": "A",
+      "divergence_cycle": 1,
+      "verdict": "PLAUSIBLE",
+      "wall_time_s": 2.56,
+      "cached": true
+    },
+    {
+      "task_id": "spi_master_constant_perturbation_003",
+      "design": "spi_master",
+      "arm": "B",
+      "divergence_cycle": 1,
+      "verdict": "PLAUSIBLE",
+      "wall_time_s": 2.42,
+      "cached": true
+    },
+    {
+      "task_id": "spi_master_next_state_redirect_047",
+      "design": "spi_master",
+      "arm": "A",
+      "divergence_cycle": 3,
+      "verdict": "PLAUSIBLE",
+      "wall_time_s": 2.25,
+      "cached": true
+    },
+    {
+      "task_id": "spi_master_next_state_redirect_047",
+      "design": "spi_master",
+      "arm": "B",
+      "divergence_cycle": 3,
+      "verdict": "PLAUSIBLE",
+      "wall_time_s": 2.35,
+      "cached": true
+    },
+    {
+      "task_id": "spi_master_next_state_redirect_048",
+      "design": "spi_master",
+      "arm": "A",
+      "divergence_cycle": 19,
+      "verdict": "PLAUSIBLE",
+      "wall_time_s": 2.13,
+      "cached": true
+    },
+    {
+      "task_id": "spi_master_next_state_redirect_048",
+      "design": "spi_master",
+      "arm": "B",
+      "divergence_cycle": 19,
+      "verdict": "PLAUSIBLE",
+      "wall_time_s": 2.47,
+      "cached": true
+    },
+    {
+      "task_id": "uart_constant_perturbation_005",
+      "design": "uart",
+      "arm": "A",
+      "divergence_cycle": 1,
+      "verdict": "PLAUSIBLE",
+      "wall_time_s": 2.65,
+      "cached": true
+    },
+    {
+      "task_id": "uart_constant_perturbation_005",
+      "design": "uart",
+      "arm": "B",
+      "divergence_cycle": 1,
+      "verdict": "PLAUSIBLE",
+      "wall_time_s": 2.41,
+      "cached": true
+    },
+    {
+      "task_id": "uart_signal_substitution_037",
+      "design": "uart",
+      "arm": "A",
+      "divergence_cycle": 4,
+      "verdict": "PLAUSIBLE",
+      "wall_time_s": 2.66,
+      "cached": true
+    },
+    {
+      "task_id": "uart_signal_substitution_037",
+      "design": "uart",
+      "arm": "B",
+      "divergence_cycle": 4,
+      "verdict": "PLAUSIBLE",
+      "wall_time_s": 2.58,
+      "cached": true
+    },
+    {
+      "task_id": "uart_next_state_redirect_041",
+      "design": "uart",
+      "arm": "A",
+      "divergence_cycle": 12,
+      "verdict": "PLAUSIBLE",
+      "wall_time_s": 2.42,
+      "cached": true
+    },
+    {
+      "task_id": "uart_next_state_redirect_041",
+      "design": "uart",
+      "arm": "B",
+      "divergence_cycle": 12,
+      "verdict": "PLAUSIBLE",
+      "wall_time_s": 2.57,
+      "cached": true
+    }
+  ]
+}

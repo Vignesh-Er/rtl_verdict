@@ -84,6 +84,16 @@ def run_task(
     run indefinitely. Any cap tripped ends the task with NO-PATCH and a
     stop_reason naming which cap fired - never a silent runaway loop.
     """
+    # work_dir must exist before ANY write into it - the success path writes
+    # submitted_patch.v directly (not via Trajectory.write's own mkdir), and
+    # nothing else guarantees the directory exists on a fresh output tree.
+    # Previously masked in ad hoc testing by reusing a scratch dir that
+    # happened to already exist - a genuinely fresh work_dir (e.g. a real
+    # results/agent_pilot/transcripts/<task_id>/arm_X first run) hits this
+    # unconditionally. Found by scripts/agent_pilot_plumbing.py's first
+    # real end-to-end run against fresh output paths.
+    work_dir.mkdir(parents=True, exist_ok=True)
+
     provider = make_provider(api_key, base_url)
     arm = ARMS[arm_name]()
     traj = new_trajectory(

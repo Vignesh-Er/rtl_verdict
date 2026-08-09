@@ -1,0 +1,39 @@
+{
+  "task_id": "fsm_constant_perturbation_005",
+  "arm": "A",
+  "model": "stub-golden-revert-v1",
+  "provider": "stub-golden-revert",
+  "seed": 0,
+  "max_iterations": 15,
+  "max_tokens_per_turn": 4096,
+  "max_total_tokens": 100000,
+  "max_wall_time_s": 600.0,
+  "started_at": "2026-08-09T10:35:05Z",
+  "iterations": [
+    {
+      "iteration": 0,
+      "role": "assistant",
+      "text": "(stub) reverting to golden source.",
+      "tool_calls": [],
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "wall_time_s": 0.0
+    }
+  ],
+  "patch_submitted": "module fsm (\n    input  wire clk,\n    input  wire rst_n,\n    input  wire start,\n    output reg  busy,\n    output reg  done\n);\n    localparam IDLE = 2'd0, RUN = 2'd1, FINISH = 2'd2;\n    reg [1:0] state;\n    reg [2:0] counter;\n\n    always @(posedge clk) begin\n        if (!rst_n) begin\n            state   <= IDLE;\n            counter <= 3'd0;\n            busy    <= 1'b0;\n            done    <= 1'b0;\n        end else begin\n            done <= 1'b0;\n            case (state)\n                IDLE: begin\n                    busy <= 1'b0;\n                    if (start) begin\n                        state   <= RUN;\n                        counter <= 3'd0;\n                        busy    <= 1'b1;\n                    end\n                end\n                RUN: begin\n                    if (counter == 3'd4) begin\n                        state <= FINISH;\n                    end else begin\n                        counter <= counter + 3'd1;\n                    end\n                end\n                FINISH: begin\n                    busy <= 1'b0;\n                    done <= 1'b1;\n                    state <= IDLE;\n                end\n                default: state <= IDLE;\n            endcase\n        end\n    end\nendmodule\n",
+  "invalid_patch_reason": null,
+  "final_verdict": "PLAUSIBLE",
+  "verdict_detail": {
+    "formal_verdict": "PROVEN-BMC",
+    "k": 40,
+    "engine": "smtbmc yices",
+    "runtime_s": 2.18,
+    "divergence_cycle": null,
+    "explanation": "stub: golden-revert, no reasoning performed"
+  },
+  "total_input_tokens": 0,
+  "total_output_tokens": 0,
+  "wall_time_s": 0.0,
+  "stop_reason": "patch_submitted",
+  "error": null
+}

@@ -1,0 +1,71 @@
+{
+  "task_id": "fifo_operator_swap_004",
+  "arm": "B",
+  "model": "stub-golden-revert-v1",
+  "provider": "stub-cap-demo",
+  "seed": 0,
+  "max_iterations": 3,
+  "max_tokens_per_turn": 4096,
+  "max_total_tokens": 100000,
+  "max_wall_time_s": 600.0,
+  "started_at": "2026-08-09T10:39:59Z",
+  "iterations": [
+    {
+      "iteration": 0,
+      "role": "assistant",
+      "text": "(stub) investigating, never submits.",
+      "tool_calls": [
+        {
+          "tool_name": "run_test",
+          "tool_input": {},
+          "tool_output": "{\"pass\": false, \"first_divergence\": {\"cycle\": 1, \"signal\": \"full\", \"expected\": \"0\", \"actual\": \"1\"}, \"summary\": \"diverged at cycle 1: full expected 0, got 1\", \"clock_period\": 10000}",
+          "is_error": false
+        }
+      ],
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "wall_time_s": 0.45215940475463867
+    },
+    {
+      "iteration": 1,
+      "role": "assistant",
+      "text": "(stub) investigating, never submits.",
+      "tool_calls": [
+        {
+          "tool_name": "run_test",
+          "tool_input": {},
+          "tool_output": "{\"pass\": false, \"first_divergence\": {\"cycle\": 1, \"signal\": \"full\", \"expected\": \"0\", \"actual\": \"1\"}, \"summary\": \"diverged at cycle 1: full expected 0, got 1\", \"clock_period\": 10000}",
+          "is_error": false
+        }
+      ],
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "wall_time_s": 0.31992506980895996
+    },
+    {
+      "iteration": 2,
+      "role": "assistant",
+      "text": "(stub) investigating, never submits.",
+      "tool_calls": [
+        {
+          "tool_name": "run_test",
+          "tool_input": {},
+          "tool_output": "{\"pass\": false, \"first_divergence\": {\"cycle\": 1, \"signal\": \"full\", \"expected\": \"0\", \"actual\": \"1\"}, \"summary\": \"diverged at cycle 1: full expected 0, got 1\", \"clock_period\": 10000}",
+          "is_error": false
+        }
+      ],
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "wall_time_s": 0.3262462615966797
+    }
+  ],
+  "patch_submitted": null,
+  "invalid_patch_reason": null,
+  "final_verdict": "NO-PATCH",
+  "verdict_detail": {},
+  "total_input_tokens": 0,
+  "total_output_tokens": 0,
+  "wall_time_s": 1.0983307361602783,
+  "stop_reason": "max_iterations",
+  "error": null
+}
