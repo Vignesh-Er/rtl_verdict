@@ -42,6 +42,8 @@ class Trajectory:
     seed: int
     max_iterations: int
     max_tokens_per_turn: int
+    max_total_tokens: int
+    max_wall_time_s: float
     started_at: str
     iterations: list[IterationRecord] = field(default_factory=list)
     patch_submitted: str | None = None
@@ -74,10 +76,11 @@ class Trajectory:
 
 def new_trajectory(
     task_id: str, arm: str, model: str, provider: str, seed: int,
-    max_iterations: int, max_tokens_per_turn: int,
+    max_iterations: int, max_tokens_per_turn: int, max_total_tokens: int, max_wall_time_s: float,
 ) -> Trajectory:
     return Trajectory(
         task_id=task_id, arm=arm, model=model, provider=provider, seed=seed,
         max_iterations=max_iterations, max_tokens_per_turn=max_tokens_per_turn,
+        max_total_tokens=max_total_tokens, max_wall_time_s=max_wall_time_s,
         started_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     )

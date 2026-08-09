@@ -14,6 +14,8 @@ obj_dir*/
 coverage.dat
 cov_annotate/
 formal_work/
+deep_bmc_work/
+agent_runs/
 **/gg_k*/
 designs/*/fsm_gg/
 designs/*/uart_gg/

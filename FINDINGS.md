@@ -296,3 +296,83 @@ breaking ties needs per-statement execution tracking, not yet built.
   via a false FAIL on a trivial counter testbench early in the project.
   Fixed by releasing on `negedge clk` instead. Codified as a hard rule in
   `designs/CONTRACT.md`, not a style preference.
+
+## Day-9 pivot: agent-evaluable corpus size, deep-BMC promotion, fifo, SIM-INVALID
+
+Prompted by an external review of the D8 plan: the 132-task corpus_v2 has
+only 34 agent-evaluable tasks (KEEP), not 132 — SILENT has no failing test
+to hand an agent, QUARANTINE has no confirmed ground-truth bug. 34 (~11 per
+design) is too small for a defensible arm-A-vs-arm-B comparison.
+
+**P0 (deep BMC k=200 on all 69 QUARANTINE mutants): 0 promotions — a real
+negative result.** `forge/deep_bmc_promote.py` re-ran every QUARANTINE
+mutant from fsm/uart/spi_master at k=200 (vs the original k=40), timeout_s
+150. 68/69 resolved cleanly well under timeout (mostly PROVEN-BMC; none
+near-timeout - the "80%-of-timeout stays QUARANTINE" rule never had to
+fire), 1/69 stayed the same INDETERMINATE as before per design (the
+`edge_swap` mutants - 3 total across the 3 designs, one each - already
+flagged as an open pattern in `coverage_vs_silent_bugs.md`). Total wall
+time 862s. Conclusion: these 69 are not solver-timeout victims sitting on
+undiscovered deep bugs - deeper search does not change their verdict. The
+`blocking_nonblocking_swap` operator in particular dominates this
+QUARANTINE pool (roughly two-thirds of the 69) and appears to frequently
+produce genuinely-equivalent mutants on these specific designs at these
+specific mutation sites - a real instance of the "equivalent mutant"
+problem well known in software mutation testing, now observed in RTL.
+Deep-BMC promotion contributes 0 toward the 60-task target; more KEEP
+tasks have to come from somewhere else (fifo, or more mutants).
+
+**Real bug found while building fifo support: `verdict/miter.py`'s
+`extract_ports` did a naive text-copy of a port's width declaration,
+which silently breaks for parameterized widths** (e.g. fifo's `[WIDTH-1:0]`
+where `WIDTH` is a module parameter) - the generated miter module has no
+access to the design's own parameter scope, so a raw `[WIDTH-1:0]` in the
+miter references an undefined identifier. Never manifested on fsm/uart/
+spi_master because none of them have a parameterized port width. The
+earlier hand-verified `designs/fifo/fifo_gg_memmap.sby` worked around this
+by hardcoding `[7:0]` directly in a hand-written `fifo_miter.sv`, rather
+than fixing the generator - meaning the bug was latent and un-fixed until
+this pass. Fixed properly (not per-design special-cased): `extract_ports`
+now resolves `parameter`/`localparam` numeric defaults and substitutes them
+into the width expression, evaluating simple arithmetic
+(`WIDTH-1` with `WIDTH=8` -> `7`); an expression that still references an
+unknown identifier after substitution is left unchanged, so a genuinely
+unresolvable width fails loudly at miter elaboration rather than silently
+producing a wrong-width comparison. Verified: fifo now resolves to `[7:0]`
+matching the hand-written version exactly; fsm/uart/spi_master's port
+extraction is byte-for-byte unchanged (regression-checked).
+
+**fifo needs memory_map, and even with it, k=40 is not reliably reachable.**
+`design.yaml` already documented the constraint (plain BMC blows up around
+depth 12-14 on `mem[]`'s array theory regardless of solver backend; with
+Yosys's `memory_map` pass — converting memories to registers/muxes before
+BMC — reachable depth roughly doubles but "still short of the standard
+depth-40 tier"). Added `memory_map: bool` to `ladder.py`'s `check_bmc`
+(inserts `memory_map` right after `prep -top miter`, matching the
+hand-verified recipe in `fifo_gg_memmap.sby` exactly). Empirically
+confirmed the constraint is real, not just documented: golden-vs-golden at
+k=40 with memory_map timed out at 120s without resolving - reaching depth
+40 specifically is harder than the yaml's own "depth 28 in 60s" estimate.
+fifo's practical corpus-generation depth had to be calibrated down from the
+other three designs' k=40, not assumed - see the calibration run and the
+depth actually used in the corpus_v2 fifo-addition report.
+
+**P2: SIM-INVALID = 0 across 132 mutants is NOT a wiring bug - confirmed by
+direct test, not assumption.** `scratch_verify/sim_invalid_probe/run_probe.py`
+deliberately forced (1) a syntactically broken DUT and (2) a DUT+testbench
+that hangs via a zero-delay infinite loop (`while(1) #0;`, never advances
+simulation time). Both correctly report `SIM-INVALID` with the expected
+detail (`"compile failed: ..."` and `"sim exceeded 5s (hang)"`
+respectively) - the category fires correctly on both the compile-fail and
+timeout paths; neither is silently absorbed into PASS/FAIL. The real
+explanation for the 0 count: every mutation operator in this project
+(`operator_swap`, `constant_perturbation`, `blocking_nonblocking_swap`,
+`edge_swap`, `signal_substitution`, `next_state_redirect`) performs a
+surgical, syntax-preserving substitution on an already-valid token/constant/
+signal/edge - none of these classes is the *kind* of transformation that
+tends to produce a parse error or an infinite hang, and any mutant that
+somehow did break parsing would already be caught and rejected by
+`check_fidelity`'s "must re-parse with 0 diagnostics" gate before ever
+reaching `run_sim` (recorded as ERROR, not silently reclassified as
+SIM-INVALID). SIM-INVALID=0 is a property of this operator set, not a
+broken code path.

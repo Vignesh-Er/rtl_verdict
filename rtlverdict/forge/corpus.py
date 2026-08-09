@@ -91,6 +91,9 @@ def generate_for_design(
     max_candidates: int | None,
     out_dir: Path,
     operators: list | None = None,
+    formal_k: int = 40,
+    formal_timeout_s: int = 60,
+    formal_memory_map: bool = False,
 ) -> tuple[list[TaskRecord], dict]:
     operators = operators if operators is not None else ALL_OPERATORS
     golden_path = design_dir / f"{design_name}.v"
@@ -143,7 +146,7 @@ def generate_for_design(
             formal_work_dir = out_dir / "formal_work" / task_id
             formal = check_bmc(
                 golden_path, mutant_path, top_module, reset_signal, reset_active_low,
-                formal_work_dir, k=40, timeout_s=60,
+                formal_work_dir, k=formal_k, timeout_s=formal_timeout_s, memory_map=formal_memory_map,
             )
 
             if sim_mutant.outcome == "SIM-INVALID":

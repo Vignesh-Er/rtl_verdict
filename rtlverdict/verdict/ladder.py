@@ -71,7 +71,17 @@ def check_bmc(
     work_dir: str | Path,
     k: int = 40,
     timeout_s: int = 120,
+    memory_map: bool = False,
 ) -> VerdictResult:
+    """`memory_map=True` inserts Yosys's `memory_map` pass right after
+    `prep -top miter`, converting the design's memories to registers/muxes
+    before BMC. Required for designs with real arrays (fifo's `mem[]`):
+    plain BMC hits SMT array-theory blowup around depth 12-14 regardless of
+    solver backend (measured, see designs/fifo/design.yaml); memory_map
+    roughly doubles reachable depth. Recipe matches the hand-verified
+    golden-vs-golden run in designs/fifo/fifo_gg_memmap.sby. A no-op for
+    memory-free designs (fsm/uart/spi_master) - never enabled for them.
+    """
     golden_path = Path(golden_path)
     mutant_path = Path(mutant_path)
     work_dir = Path(work_dir)
@@ -118,6 +128,7 @@ design -copy-from mutant -as mutant_{top_module} mutant_{top_module}
 
 read_verilog -formal -sv miter.sv
 prep -top miter
+{"memory_map" if memory_map else ""}
 
 [files]
 golden.v
@@ -126,13 +137,14 @@ miter.sv
 """
     sby_path = work_dir / "check.sby"
     sby_path.write_text(sby_content)
+    tier_name = "bmc_memmap" if memory_map else "bmc"
 
     try:
         log, runtime = _run_sby(sby_path, timeout_s)
     except subprocess.TimeoutExpired:
         return VerdictResult(
             verdict="INDETERMINATE",
-            tier="bmc",
+            tier=tier_name,
             engine="smtbmc yices",
             k=k,
             runtime_s=float(timeout_s),
@@ -150,7 +162,7 @@ miter.sv
         cycle = int(m.group(2)) if m else None
         return VerdictResult(
             verdict="REFUTED",
-            tier="bmc",
+            tier=tier_name,
             engine="smtbmc yices",
             k=k,
             runtime_s=runtime,
@@ -161,7 +173,7 @@ miter.sv
     if "DONE (PASS" in log:
         return VerdictResult(
             verdict="PROVEN-BMC",
-            tier="bmc",
+            tier=tier_name,
             engine="smtbmc yices",
             k=k,
             runtime_s=runtime,

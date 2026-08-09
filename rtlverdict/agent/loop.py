@@ -62,11 +62,26 @@ def run_task(
     work_dir: Path,
     max_iterations: int = 15,
     max_tokens_per_turn: int = 4096,
+    max_total_tokens: int = 100_000,
+    max_wall_time_s: float = 600.0,
     seed: int = 0,
 ) -> Trajectory:
+    """Hard caps (enforced here, not by convention): max_iterations bounds
+    turn count; max_tokens_per_turn bounds one response; max_total_tokens
+    bounds cumulative input+output tokens across the whole task -
+    checked after every turn, so a long-running conversation with many
+    cheap turns can't quietly outspend a token budget that only looked at
+    per-turn cost; max_wall_time_s bounds real elapsed time regardless of
+    token/iteration counts, so a slow provider or a stuck tool call can't
+    run indefinitely. Any cap tripped ends the task with NO-PATCH and a
+    stop_reason naming which cap fired - never a silent runaway loop.
+    """
     provider = make_provider(api_key, base_url)
     arm = ARMS[arm_name]()
-    traj = new_trajectory(task.task_id, arm_name, model, provider.name, seed, max_iterations, max_tokens_per_turn)
+    traj = new_trajectory(
+        task.task_id, arm_name, model, provider.name, seed,
+        max_iterations, max_tokens_per_turn, max_total_tokens, max_wall_time_s,
+    )
 
     ctx = ToolContext(
         golden_path=task.golden_path, mutant_path=task.mutant_path,
@@ -88,11 +103,24 @@ def run_task(
     nudged = False
 
     for i in range(max_iterations):
+        elapsed = time.time() - wall_start
+        if elapsed >= max_wall_time_s:
+            stop_reason = "max_wall_time"
+            break
+        if traj.total_input_tokens + traj.total_output_tokens >= max_total_tokens:
+            stop_reason = "max_total_tokens"
+            break
+
         iter_start = time.time()
         try:
+            # Never let a single request outlive the task's remaining wall
+            # budget - a stuck/slow request is bounded by whichever is
+            # smaller, its own per-request timeout or what's left overall.
+            request_timeout = max(1, int(min(120, max_wall_time_s - elapsed)))
             resp = provider.request(
                 model=model, system=arm.system_prompt, messages=messages,
                 tools=arm.tools, max_tokens=max_tokens_per_turn, seed=seed,
+                timeout_s=request_timeout,
             )
         except Exception as e:  # noqa: BLE001 - a provider/network failure ends the task cleanly
             traj.finish(verdict="ERROR", detail={}, stop_reason="provider_error", error=f"{type(e).__name__}: {e}")

@@ -16,6 +16,64 @@ import pyslang
 SyntaxKind = pyslang.syntax.SyntaxKind
 
 _WIDTH_RE = re.compile(r"\[[^\]]*\]")
+_SAFE_ARITH_RE = re.compile(r"^[\d\s+\-*/()]+$")
+
+
+def _walk(n):
+    yield n
+    if isinstance(n, pyslang.parsing.Token):
+        return
+    for i in range(len(n)):
+        c = n[i]
+        if c is not None:
+            yield from _walk(c)
+
+
+def _extract_numeric_params(source: str) -> dict[str, int]:
+    """Default values of every `parameter`/`localparam` declaration with a
+    plain integer-literal default (e.g. `parameter WIDTH = 8`). Used to
+    resolve parameterized port widths like `[WIDTH-1:0]` into a concrete
+    `[7:0]` for the miter, which only ever declares plain wires and cannot
+    itself see the design's own parameter scope. Non-numeric defaults
+    (expressions referencing another parameter, $clog2, etc.) are skipped -
+    left for _resolve_width to fail loud on, never silently guessed.
+    """
+    tree = pyslang.syntax.SyntaxTree.fromText(source, "x.v")
+    params: dict[str, int] = {}
+    for node in _walk(tree.root):
+        if type(node).__name__ != "ParameterDeclarationSyntax":
+            continue
+        for d in node.declarators:
+            if type(d).__name__ != "DeclaratorSyntax" or d.initializer is None:
+                continue
+            name = str(d.name).strip()
+            expr_text = str(d.initializer.expr).strip()
+            if _SAFE_ARITH_RE.match(expr_text):
+                params[name] = eval(expr_text, {"__builtins__": {}}, {})  # noqa: S307 - regex-validated digits/arithmetic only
+    return params
+
+
+def _resolve_width(width_decl: str, params: dict[str, int]) -> str:
+    """Substitute known parameter names into a port width expression (e.g.
+    "[WIDTH-1:0]" with WIDTH=8 -> "[7:0]") so the miter - which has no
+    access to the design's own parameter scope - declares a concrete width
+    instead of an undefined identifier. Left UNCHANGED (not guessed) if the
+    substituted expression still contains an unresolved identifier or
+    anything outside plain arithmetic: a stale width_decl fails loudly at
+    miter elaboration, never silently produces a wrong-width comparison.
+    """
+    if not width_decl:
+        return width_decl
+    inner = width_decl[1:-1]
+    for name, value in params.items():
+        inner = re.sub(rf"\b{re.escape(name)}\b", str(value), inner)
+    resolved = []
+    for part in inner.split(":"):
+        part = part.strip()
+        if not _SAFE_ARITH_RE.match(part):
+            return width_decl
+        resolved.append(str(eval(part, {"__builtins__": {}}, {})))  # noqa: S307 - regex-validated digits/arithmetic only
+    return f"[{':'.join(resolved)}]"
 
 
 @dataclass
@@ -33,20 +91,21 @@ def extract_ports(source: str, top_module: str) -> list[Port]:
     ImplicitType with/without packed dimensions, etc.) - this only needs the
     bracket portion, never the reg/wire/logic keyword itself, and the miter
     only ever declares plain wires regardless of the original port's type.
+
+    Parameterized widths (e.g. `[WIDTH-1:0]`) are resolved to concrete
+    numbers via the module's own parameter defaults (_resolve_width) - the
+    miter has no access to the design's parameter scope, so a raw
+    `[WIDTH-1:0]` copied verbatim into the miter module would reference an
+    undefined identifier. First found on fifo.v (real bug: the original
+    naive text-copy silently produced an unelaborable miter for any
+    parameterized-width port; fsm/uart/spi_master never had one, so this
+    never manifested until a memory-containing design needed one).
     """
     tree = pyslang.syntax.SyntaxTree.fromText(source, "x.v")
-
-    def walk(n):
-        yield n
-        if isinstance(n, pyslang.parsing.Token):
-            return
-        for i in range(len(n)):
-            c = n[i]
-            if c is not None:
-                yield from walk(c)
+    params = _extract_numeric_params(source)
 
     ports: list[Port] = []
-    for node in walk(tree.root):
+    for node in _walk(tree.root):
         if type(node).__name__ != "ImplicitAnsiPortSyntax":
             continue
         header = node.header
@@ -58,7 +117,7 @@ def extract_ports(source: str, top_module: str) -> list[Port]:
         if direction not in ("input", "output"):
             continue
         m = _WIDTH_RE.search(str(header))
-        width_decl = m.group(0) if m else ""
+        width_decl = _resolve_width(m.group(0), params) if m else ""
         ports.append(Port(name=name, direction=direction, width_decl=width_decl))
     return ports
 
