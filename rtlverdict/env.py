@@ -1,11 +1,17 @@
 """Toolchain environment setup, shared by every module that shells out to
 Yosys/sby/eqy/mcy/iverilog/verilator or any bash-based subprocess.
 
-Two real, evidenced Windows issues this centralizes fixes for:
+Three real, evidenced Windows issues this centralizes fixes for:
   - yosys.exe fails to load (libreadline8.dll) unless oss-cad-suite's `lib/`
     directory is on PATH, not just `bin/`.
   - eqy and Verilator's --binary mode both shell out to `make`, which is not
     bundled in oss-cad-suite on Windows.
+  - Calling verilator_bin.exe directly (bypassing the `verilator` Perl
+    wrapper - itself unusable here, it hard-imports Pod::Usage which this
+    MSYS2 setup doesn't have, same root cause as verilator_coverage's own
+    Pod::Usage problem documented in eval/coverage.py) fails to find its
+    own runtime includes (verilated_std.sv etc.) unless VERILATOR_ROOT is
+    set explicitly - the wrapper normally sets this itself.
 """
 
 from __future__ import annotations
@@ -100,6 +106,12 @@ def build_subprocess_env() -> dict[str, str]:
     parts.append(env.get("PATH", ""))
     env["PATH"] = os.pathsep.join(p for p in parts if p)
     env["YOSYSHQ_ROOT"] = str(root) + os.sep
+    # Forward slashes, not str(Path) - Verilator's generated Makefile passes
+    # VERILATOR_ROOT through Make, which treats backslash as an escape/
+    # line-continuation character and silently mangles a Windows-native
+    # path (observed: "C:\Users\...\verilator" became the path components
+    # concatenated with no separators at all in a downstream Make command).
+    env.setdefault("VERILATOR_ROOT", str(root / "share" / "verilator").replace("\\", "/"))
     return env
 
 

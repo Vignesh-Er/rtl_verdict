@@ -1,0 +1,353 @@
+{
+  "provenance": {
+    "script": "scripts/build_stats.py",
+    "generated_at_utc": "2026-08-09T06:02:12Z",
+    "git": {
+      "commit_sha": "f86778d86e160f6d7d2f0838e8cf32352d5210de",
+      "dirty": true
+    },
+    "host_os": "win32",
+    "field_sources": {
+      "designs[].generated/distinct": "fresh regeneration of mutation candidates via forge operators, this run - never read from a log",
+      "designs[].recorded/verdicts": [
+        "benchmarks\\corpus_v2\\tasks.json",
+        "benchmarks\\corpus_v2_fifo_addition\\tasks.json"
+      ],
+      "operators": "same tasks.json files, grouped by operator field",
+      "silent_bug_rate": "derived from designs[].verdicts",
+      "equivalent_mutant_promotion": "benchmarks/corpus_v2/deep_bmc_promotions.json",
+      "divergence_depth_histogram_keep": "tasks.json KEEP records' divergence_cycle field",
+      "coverage": "fresh verilator --binary --coverage build+run, this run, DUT-only filtered (rtlverdict.eval.coverage)",
+      "toolchain_versions": "rtlverdict.env.run_doctor(), live --version invocation of every tool"
+    }
+  },
+  "toolchain_versions": {
+    "yosys": "Yosys 0.68+40 (git sha1 0f2bcb94b-dirty, Release, GNU /usr/bin/x86_64-w64-mingw32-g++ 15.2.1)",
+    "sby": "SBY v0.68",
+    "eqy": "EQY v0.68",
+    "mcy": "Usage: mcy-script.py [OPTIONS] [COMMAND] [ARGS]...",
+    "iverilog": "Icarus Verilog version 14.0 (devel) (s20260301-349-gf49307688-dirty)",
+    "vvp": "Icarus Verilog runtime version 14.0 (devel) (s20260301-349-gf49307688-dirty)",
+    "verilator_bin": "Verilator 5.051 devel rev v5.050-150-g7e80ea657 (mod)",
+    "z3": "Z3 version 4.15.5 - 64 bit",
+    "boolector": "3.2.4",
+    "yices": "Yices 2.7.0",
+    "bash": "GNU bash, version 5.2.37(1)-release (x86_64-pc-msys)",
+    "make": "GNU Make 4.4.1",
+    "python": "3.12.10"
+  },
+  "designs": [
+    {
+      "name": "fsm",
+      "tier": "A",
+      "loc": 45,
+      "formal_k": 40,
+      "generated": 37,
+      "distinct": 37,
+      "recorded": 37,
+      "verdicts": {
+        "SILENT": 13,
+        "QUARANTINE": 19,
+        "KEEP": 5
+      }
+    },
+    {
+      "name": "uart",
+      "tier": "A",
+      "loc": 53,
+      "formal_k": 40,
+      "generated": 44,
+      "distinct": 44,
+      "recorded": 44,
+      "verdicts": {
+        "KEEP": 17,
+        "QUARANTINE": 24,
+        "SILENT": 3
+      }
+    },
+    {
+      "name": "spi_master",
+      "tier": "A",
+      "loc": 58,
+      "formal_k": 40,
+      "generated": 51,
+      "distinct": 51,
+      "recorded": 51,
+      "verdicts": {
+        "SILENT": 13,
+        "KEEP": 12,
+        "QUARANTINE": 26
+      }
+    },
+    {
+      "name": "fifo",
+      "tier": "A",
+      "loc": 39,
+      "formal_k": 25,
+      "generated": 39,
+      "distinct": 39,
+      "recorded": 39,
+      "verdicts": {
+        "QUARANTINE": 15,
+        "KEEP": 19,
+        "SILENT": 3,
+        "ERROR": 2
+      }
+    }
+  ],
+  "operators": [
+    {
+      "name": "blocking_nonblocking_swap",
+      "candidates": 65,
+      "verdicts": {
+        "QUARANTINE": 60,
+        "SILENT": 3,
+        "ERROR": 2
+      }
+    },
+    {
+      "name": "constant_perturbation",
+      "candidates": 40,
+      "verdicts": {
+        "QUARANTINE": 6,
+        "SILENT": 13,
+        "KEEP": 21
+      }
+    },
+    {
+      "name": "edge_swap",
+      "candidates": 4,
+      "verdicts": {
+        "QUARANTINE": 4
+      }
+    },
+    {
+      "name": "next_state_redirect",
+      "candidates": 16,
+      "verdicts": {
+        "KEEP": 8,
+        "SILENT": 5,
+        "QUARANTINE": 3
+      }
+    },
+    {
+      "name": "operator_swap",
+      "candidates": 22,
+      "verdicts": {
+        "SILENT": 5,
+        "QUARANTINE": 7,
+        "KEEP": 10
+      }
+    },
+    {
+      "name": "signal_substitution",
+      "candidates": 24,
+      "verdicts": {
+        "QUARANTINE": 4,
+        "SILENT": 6,
+        "KEEP": 14
+      }
+    }
+  ],
+  "silent_bug_rate": {
+    "definition": "SILENT = a mutant formally REFUTED (verdict proves a real behavioral divergence from golden) where the design's own testbench still reports sim PASS. Rate = SILENT / (KEEP + SILENT) - i.e. out of every formally-confirmed real bug (whether or not sim caught it), the fraction sim missed.",
+    "numerator": 32,
+    "denominator": 85,
+    "rate_pct": 37.6,
+    "per_design": [
+      {
+        "design": "fsm",
+        "keep": 5,
+        "silent": 13,
+        "n": 18,
+        "rate_pct": 72.2
+      },
+      {
+        "design": "uart",
+        "keep": 17,
+        "silent": 3,
+        "n": 20,
+        "rate_pct": 15.0
+      },
+      {
+        "design": "spi_master",
+        "keep": 12,
+        "silent": 13,
+        "n": 25,
+        "rate_pct": 52.0
+      },
+      {
+        "design": "fifo",
+        "keep": 19,
+        "silent": 3,
+        "n": 22,
+        "rate_pct": 13.6
+      }
+    ]
+  },
+  "equivalent_mutant_promotion": {
+    "quarantined_count": 69,
+    "promoted_count": 0,
+    "k_original": 40,
+    "k_deep": 200,
+    "designs_checked": [
+      "fsm",
+      "spi_master",
+      "uart"
+    ],
+    "note": "fifo's QUARANTINE pool was not re-checked at deep k - its own k=25 first pass is already near the practical ceiling for this design (memory_map array-theory blowup), see designs/fifo/design.yaml and FINDINGS.md"
+  },
+  "divergence_depth_histogram_keep": {
+    "n": 53,
+    "buckets": {
+      "0-4": 40,
+      "5-9": 5,
+      "10-19": 8,
+      "20+": 0
+    },
+    "raw_values": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      4,
+      4,
+      4,
+      4,
+      5,
+      5,
+      5,
+      5,
+      9,
+      10,
+      12,
+      12,
+      12,
+      19,
+      19,
+      19,
+      19
+    ]
+  },
+  "coverage": [
+    {
+      "design": "fsm",
+      "line": {
+        "hit": 4,
+        "total": 5
+      },
+      "toggle": {
+        "hit": 18,
+        "total": 20
+      },
+      "branch": {
+        "hit": 6,
+        "total": 6
+      },
+      "expr": {
+        "hit": 2,
+        "total": 2
+      }
+    },
+    {
+      "design": "uart",
+      "line": {
+        "hit": 5,
+        "total": 6
+      },
+      "toggle": {
+        "hit": 26,
+        "total": 52
+      },
+      "branch": {
+        "hit": 6,
+        "total": 6
+      },
+      "expr": {
+        "hit": 2,
+        "total": 2
+      }
+    },
+    {
+      "design": "spi_master",
+      "line": {
+        "hit": 4,
+        "total": 5
+      },
+      "toggle": {
+        "hit": 38,
+        "total": 56
+      },
+      "branch": {
+        "hit": 8,
+        "total": 8
+      },
+      "expr": {
+        "hit": 4,
+        "total": 4
+      }
+    },
+    {
+      "design": "fifo",
+      "line": {
+        "hit": 1,
+        "total": 1
+      },
+      "toggle": {
+        "hit": 82,
+        "total": 188
+      },
+      "branch": {
+        "hit": 6,
+        "total": 6
+      },
+      "expr": {
+        "hit": 10,
+        "total": 11
+      }
+    }
+  ],
+  "corpus_totals": {
+    "generated": 171,
+    "distinct": 171,
+    "recorded": 171,
+    "verdicts": {
+      "KEEP": 53,
+      "QUARANTINE": 84,
+      "SILENT": 32,
+      "ERROR": 2
+    }
+  }
+}

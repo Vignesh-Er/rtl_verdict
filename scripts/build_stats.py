@@ -1,0 +1,328 @@
+"""scripts/build_stats.py -> results/corpus_stats.json
+
+Every number in every downstream artifact (results/*.md, README, dashboard)
+is read from this file, never hand-typed - see FINDINGS.md's "freeze the
+numbers" pivot. Every field here is computed fresh from a real source
+(tasks.json records, a live re-run of candidate generation, a live
+toolchain --version invocation, git, a fresh Verilator coverage build) -
+nothing is copied from a prior report or from memory.
+
+Run: python scripts/build_stats.py  (from repo root, RTLVERDICT_OSS_CAD_ROOT set)
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import shutil
+import subprocess
+import sys
+import time
+from collections import defaultdict
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT))
+
+from rtlverdict import env  # noqa: E402
+from rtlverdict.eval.coverage import parse_coverage_dat  # noqa: E402
+from rtlverdict.forge.corpus import ALL_OPERATORS  # noqa: E402
+from rtlverdict.forge.parser import parse_file  # noqa: E402
+
+# name, tier, formal_k (the k actually used to generate this design's corpus -
+# fifo's is 25, not 40, because of the memory_map array-theory ceiling - see
+# FINDINGS.md's Day-9 pivot section. This is the single source of truth other
+# scripts/docs must cite, never a hardcoded "40" or "25" typed elsewhere.)
+DESIGNS = [
+    ("fsm", "A", 40),
+    ("uart", "A", 40),
+    ("spi_master", "A", 40),
+    ("fifo", "A", 25),
+]
+
+CORPUS_FILES = {
+    "fsm": REPO_ROOT / "benchmarks/corpus_v2/tasks.json",
+    "uart": REPO_ROOT / "benchmarks/corpus_v2/tasks.json",
+    "spi_master": REPO_ROOT / "benchmarks/corpus_v2/tasks.json",
+    "fifo": REPO_ROOT / "benchmarks/corpus_v2_fifo_addition/tasks.json",
+}
+
+
+def _git_info() -> dict:
+    sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=REPO_ROOT, capture_output=True, text=True, check=True
+    ).stdout.strip()
+    dirty = subprocess.run(
+        ["git", "status", "--porcelain"], cwd=REPO_ROOT, capture_output=True, text=True, check=True
+    ).stdout.strip()
+    return {"commit_sha": sha, "dirty": bool(dirty)}
+
+
+def _toolchain_versions() -> dict:
+    report = env.run_doctor()
+    versions = {t.name: t.version_output for t in report.tools if t.found}
+    versions["python"] = sys.version.split()[0]
+    return versions
+
+
+def _normalize(source: str) -> str:
+    # Mirrors forge/corpus.py's own _normalize exactly (whitespace-only
+    # normalization before hashing for dedup) - kept as a one-line inline
+    # copy rather than importing a private helper across modules.
+    return "\n".join(line.rstrip() for line in source.splitlines())
+
+
+def _fresh_generated_distinct(design: str) -> tuple[int, int]:
+    """Re-derive generated/distinct candidate counts FRESH this run (cheap -
+    parsing + operator application only, no subprocess calls) rather than
+    trusting a prior run's console log.
+    """
+    golden_path = REPO_ROOT / "designs" / design / f"{design}.v"
+    tree, source = parse_file(golden_path)
+    all_candidates = []
+    for op in ALL_OPERATORS:
+        all_candidates.extend(op(tree, source))
+    seen = set()
+    for c in all_candidates:
+        mutant_source = source[: c.start_offset] + c.replacement_text + source[c.end_offset :]
+        seen.add(hashlib.sha256(_normalize(mutant_source).encode()).hexdigest())
+    return len(all_candidates), len(seen)
+
+
+def _design_stats() -> list[dict]:
+    out = []
+    for name, tier, formal_k in DESIGNS:
+        loc = len((REPO_ROOT / "designs" / name / f"{name}.v").read_text().splitlines())
+        tasks = json.loads(CORPUS_FILES[name].read_text())
+        tasks_for_design = [t for t in tasks if t["design"] == name]
+        generated, distinct = _fresh_generated_distinct(name)
+        recorded = len(tasks_for_design)
+
+        assert generated == distinct, (
+            f"{name}: generated({generated}) != distinct({distinct}) on fresh regeneration "
+            f"- a duplicate mutant appeared that the original run's dedup should have caught"
+        )
+        assert distinct == recorded, (
+            f"{name}: distinct({distinct}) != recorded({recorded}) - a candidate was silently "
+            f"dropped between generation and the committed tasks.json"
+        )
+
+        verdicts: dict[str, int] = defaultdict(int)
+        for t in tasks_for_design:
+            verdicts[t["forge_decision"]] += 1
+        assert sum(verdicts.values()) == recorded, f"{name}: verdict counts don't sum to recorded"
+
+        out.append(
+            {
+                "name": name,
+                "tier": tier,
+                "loc": loc,
+                "formal_k": formal_k,
+                "generated": generated,
+                "distinct": distinct,
+                "recorded": recorded,
+                "verdicts": dict(verdicts),
+            }
+        )
+    return out
+
+
+def _operator_stats() -> list[dict]:
+    all_tasks = []
+    for path in {str(p): p for p in CORPUS_FILES.values()}.values():
+        all_tasks.extend(json.loads(path.read_text()))
+    by_op: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    for t in all_tasks:
+        op = t["operator"].split(".")[-1]
+        by_op[op][t["forge_decision"]] += 1
+    result = []
+    for op, verdicts in sorted(by_op.items()):
+        result.append({"name": op, "candidates": sum(verdicts.values()), "verdicts": dict(verdicts)})
+    return result
+
+
+def _silent_bug_rate(designs_data: list[dict]) -> dict:
+    per_design = []
+    total_keep, total_silent = 0, 0
+    for d in designs_data:
+        keep = d["verdicts"].get("KEEP", 0)
+        silent = d["verdicts"].get("SILENT", 0)
+        n = keep + silent
+        per_design.append(
+            {
+                "design": d["name"],
+                "keep": keep,
+                "silent": silent,
+                "n": n,
+                "rate_pct": round(100.0 * silent / n, 1) if n else None,
+            }
+        )
+        total_keep += keep
+        total_silent += silent
+    n_total = total_keep + total_silent
+    return {
+        "definition": (
+            "SILENT = a mutant formally REFUTED (verdict proves a real behavioral divergence "
+            "from golden) where the design's own testbench still reports sim PASS. "
+            "Rate = SILENT / (KEEP + SILENT) - i.e. out of every formally-confirmed real bug "
+            "(whether or not sim caught it), the fraction sim missed."
+        ),
+        "numerator": total_silent,
+        "denominator": n_total,
+        "rate_pct": round(100.0 * total_silent / n_total, 1) if n_total else None,
+        "per_design": per_design,
+    }
+
+
+def _equivalent_mutant_promotion() -> dict:
+    promotions = json.loads((REPO_ROOT / "benchmarks/corpus_v2/deep_bmc_promotions.json").read_text())
+    promoted = [p for p in promotions if p["decision"] == "PROMOTE"]
+    return {
+        "quarantined_count": len(promotions),
+        "promoted_count": len(promoted),
+        "k_original": 40,
+        "k_deep": 200,
+        "designs_checked": sorted({p["design"] for p in promotions}),
+        "note": (
+            "fifo's QUARANTINE pool was not re-checked at deep k - its own k=25 first pass is "
+            "already near the practical ceiling for this design (memory_map array-theory "
+            "blowup), see designs/fifo/design.yaml and FINDINGS.md"
+        ),
+    }
+
+
+def _divergence_depth_histogram() -> dict:
+    all_tasks = []
+    for path in {str(p): p for p in CORPUS_FILES.values()}.values():
+        all_tasks.extend(json.loads(path.read_text()))
+    cycles = [
+        t["divergence_cycle"]
+        for t in all_tasks
+        if t["forge_decision"] == "KEEP" and t["divergence_cycle"] is not None
+    ]
+    buckets = {"0-4": 0, "5-9": 0, "10-19": 0, "20+": 0}
+    for c in cycles:
+        if c < 5:
+            buckets["0-4"] += 1
+        elif c < 10:
+            buckets["5-9"] += 1
+        elif c < 20:
+            buckets["10-19"] += 1
+        else:
+            buckets["20+"] += 1
+    return {"n": len(cycles), "buckets": buckets, "raw_values": sorted(cycles)}
+
+
+def _coverage() -> list[dict]:
+    """Fresh Verilator --binary --coverage build+run per design, DUT-only
+    filtered - reproduces the 39.8%(raw)->50.0%(DUT-only) uart story
+    documented in eval/coverage.py exactly (verified byte-for-byte while
+    building this script). Never read from a prior report.
+    """
+    e = env.build_subprocess_env()
+    vbin = shutil.which("verilator_bin.exe", path=e["PATH"])
+    if vbin is None:
+        raise RuntimeError("verilator_bin.exe not found on PATH built by rtlverdict.env")
+
+    results = []
+    for name, _tier, _formal_k in DESIGNS:
+        work = REPO_ROOT / "scratch_verify" / "cov_build" / name
+        if work.exists():
+            shutil.rmtree(work)
+        work.mkdir(parents=True, exist_ok=True)
+        shutil.copy(REPO_ROOT / "designs" / name / f"{name}.v", work / f"{name}.v")
+        shutil.copy(REPO_ROOT / "designs" / name / f"tb_{name}.v", work / f"tb_{name}.v")
+
+        top = f"tb_{name}"
+        build = subprocess.run(
+            [
+                vbin, "--binary", "--coverage", "-Wno-fatal", "--top-module", top,
+                f"{name}.v", f"tb_{name}.v", "-Mdir", "obj_dir",
+            ],
+            cwd=work, env=e, capture_output=True, text=True, timeout=120,
+        )
+        if build.returncode != 0:
+            raise RuntimeError(f"coverage build failed for {name}:\n{build.stderr[-1500:]}")
+
+        run = subprocess.run(
+            [str(work / "obj_dir" / f"V{top}.exe")], cwd=work, env=e,
+            capture_output=True, text=True, timeout=30,
+        )
+        if "RTLVERDICT_RESULT: PASS" not in run.stdout:
+            raise RuntimeError(f"golden {name} did not PASS its own testbench during coverage run: {run.stdout[-500:]}")
+
+        summary = parse_coverage_dat(work / "coverage.dat", dut_file=f"{name}.v")
+        results.append(
+            {
+                "design": name,
+                "line": {"hit": summary.by_type["line"][0], "total": summary.by_type["line"][1]},
+                "toggle": {"hit": summary.by_type["toggle"][0], "total": summary.by_type["toggle"][1]},
+                "branch": {"hit": summary.by_type["branch"][0], "total": summary.by_type["branch"][1]},
+                "expr": {"hit": summary.by_type["expr"][0], "total": summary.by_type["expr"][1]},
+            }
+        )
+    return results
+
+
+def main() -> None:
+    env.sweep_orphaned_solvers()
+
+    print("Building results/corpus_stats.json...")
+    designs_data = _design_stats()
+    print(f"  design stats: {[(d['name'], d['recorded']) for d in designs_data]}")
+    operator_data = _operator_stats()
+    silent_bug = _silent_bug_rate(designs_data)
+    equiv_promo = _equivalent_mutant_promotion()
+    depth_hist = _divergence_depth_histogram()
+    print("  running fresh coverage builds (4 designs)...")
+    coverage_data = _coverage()
+    print(f"  coverage (DUT-only toggle): {[(c['design'], c['toggle']) for c in coverage_data]}")
+
+    total_generated = sum(d["generated"] for d in designs_data)
+    total_distinct = sum(d["distinct"] for d in designs_data)
+    total_recorded = sum(d["recorded"] for d in designs_data)
+    assert total_generated == total_distinct == total_recorded, "corpus-wide sums mismatch"
+
+    stats = {
+        "provenance": {
+            "script": "scripts/build_stats.py",
+            "generated_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "git": _git_info(),
+            "host_os": sys.platform,
+            "field_sources": {
+                "designs[].generated/distinct": "fresh regeneration of mutation candidates via forge operators, this run - never read from a log",
+                "designs[].recorded/verdicts": [str(p.relative_to(REPO_ROOT)) for p in {str(p): p for p in CORPUS_FILES.values()}.values()],
+                "operators": "same tasks.json files, grouped by operator field",
+                "silent_bug_rate": "derived from designs[].verdicts",
+                "equivalent_mutant_promotion": "benchmarks/corpus_v2/deep_bmc_promotions.json",
+                "divergence_depth_histogram_keep": "tasks.json KEEP records' divergence_cycle field",
+                "coverage": "fresh verilator --binary --coverage build+run, this run, DUT-only filtered (rtlverdict.eval.coverage)",
+                "toolchain_versions": "rtlverdict.env.run_doctor(), live --version invocation of every tool",
+            },
+        },
+        "toolchain_versions": _toolchain_versions(),
+        "designs": designs_data,
+        "operators": operator_data,
+        "silent_bug_rate": silent_bug,
+        "equivalent_mutant_promotion": equiv_promo,
+        "divergence_depth_histogram_keep": depth_hist,
+        "coverage": coverage_data,
+        "corpus_totals": {
+            "generated": total_generated,
+            "distinct": total_distinct,
+            "recorded": total_recorded,
+            "verdicts": {
+                k: sum(d["verdicts"].get(k, 0) for d in designs_data)
+                for k in ("KEEP", "QUARANTINE", "SILENT", "ERROR")
+            },
+        },
+    }
+
+    out_path = REPO_ROOT / "results" / "corpus_stats.json"
+    out_path.write_text(json.dumps(stats, indent=2))
+    print(f"wrote {out_path}")
+    print(f"corpus totals: {stats['corpus_totals']}")
+
+
+if __name__ == "__main__":
+    main()
