@@ -1,14 +1,19 @@
-# Engineering log: eleven times a machine-generated result was wrong
+# Engineering log: twelve times this project checked itself instead of assuming
 
-Every episode below is a case where something — a static read of RTLIL,
-a formal tool's own summary, a "timed out" status, a scratch directory
-that happened to already exist, a percentage that looked clean — said
-one thing, and a cheap, deliberately-built discriminating test showed
-it was wrong. That is this project's actual thesis (a testbench saying
-PASS is not proof) turned back on its own tooling, not a separate
-virtue. A log of caught mistakes is presented here as a strength
-because catching them cheaply, before they became a committed claim, is
-the entire method.
+Eleven of the twelve episodes below are cases where something — a
+static read of RTLIL, a formal tool's own summary, a "timed out"
+status, a scratch directory that happened to already exist, a
+percentage that looked clean — said one thing, and a cheap,
+deliberately-built discriminating test showed it was wrong. That is
+this project's actual thesis (a testbench saying PASS is not proof)
+turned back on its own tooling, not a separate virtue. A log of caught
+mistakes is presented here as a strength because catching them cheaply,
+before they became a committed claim, is the entire method. The
+twelfth episode is different in kind, deliberately included anyway: an
+API-surface audit whose result was that the code was already correct —
+included because *verifying* a correct-by-design mapping instead of
+assuming it from the class names is the same discipline as the other
+eleven, just with a different outcome.
 
 Fixed structure per episode: **Symptom → Naive reading → Discriminating
 test → Result → Rule adopted.**
@@ -339,3 +344,60 @@ this" — if a number isn't in a generated file, it doesn't get to be in
 a doc, regardless of how recently or carefully it was actually
 measured. This episode is the sweep working exactly as designed, not a
 gap in it.
+
+## 12. The verdict taxonomy audit — the API-surface lesson, not a bug
+
+This episode is framed differently from the eleven above on purpose:
+nothing here was wrong. It's included because *checking* that, rather
+than assuming it, is the same discipline applied to itself one more
+time — and because the check could easily have gone the other way.
+
+**Symptom.** The agent-verdict path advertises five verdict classes in
+its own type signature and documentation
+(`PLAUSIBLE`/`REFUTED`/`INVALID-PATCH`/`NO-PATCH`/`ERROR`), and the
+underlying formal ladder has its own three-value `VERDICTS` enum
+(`REFUTED`/`PROVEN-BMC`/`INDETERMINATE`) plus a documented, not-yet-
+implemented fourth concept (`PROVEN-UNBOUNDED`). Across every document
+written about this project so far, the *distribution* of what those
+verdict fields actually contained, across every real run ever produced,
+had never once been directly inspected.
+
+**Naive reading.** The ladder works because the engine computes the
+right thing — `check_bmc()`'s own return value (`VerdictResult.verdict`)
+had been read, quoted, and trusted repeatedly (`results/verdict_ladder_validation.md`
+is built entirely on it). It would have been easy to assume that value
+is also what a consumer of the agent-verdict path actually sees, since
+it's the value everything upstream is computed from.
+
+**Discriminating test.** Read the literal string in the
+consumer-facing field (`Trajectory.final_verdict`, the attribute
+`run_task()` actually returns and every caller actually reads) across
+every committed run record, rather than trusting the engine's internal
+return value as a proxy for it. Concretely: grepped `final_verdict`
+across all `63` committed `trajectory.json` files (every patch-path run
+this project has ever produced, Phase 2 + Phase 2B combined) for
+`PROVEN-BMC` and `PROVEN-UNBOUNDED`, instead of reasoning from
+`_FORMAL_TO_VERDICT`'s source code alone.
+
+**Result.** `0/63` — neither string was ever the surfaced
+`final_verdict`, on any record. Both are unreachable on the patch path
+by construction: `PROVEN-BMC` is unconditionally remapped to
+`PLAUSIBLE` by `_FORMAL_TO_VERDICT`
+([`rtlverdict/agent/loop.py:39`](../rtlverdict/agent/loop.py#L39));
+`PROVEN-UNBOUNDED` isn't a value the ladder's own enum can produce at
+all yet. The mapping is intentional and epistemically correct — it
+predates this audit by an entire earlier project phase, and the audit
+changed zero lines of `check_patch` or `ladder.py`. It was never wrong;
+it had simply never been directly verified, only inferred from reading
+the code that computes the internal value.
+
+**Rule adopted.** Verify the surfaced value, not the computed one. A
+function's return value and what a downstream consumer actually reads
+are different artifacts, and only one of them is the interface a reader
+or a caller ever sees — the fact that they're related (one is derived
+from the other) is exactly what makes it easy to check the wrong one
+and believe the check covered both. This project's own
+`results/verdict_ladder_validation.md` now states the surfaced/raw
+distinction explicitly, in a table, rather than leaving it to be
+inferred from source (see its §7 and the README's "Verdict taxonomy"
+section) — a direct product of this episode.

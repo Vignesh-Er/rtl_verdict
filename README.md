@@ -12,6 +12,13 @@ proof (see Limitations). What this tool demonstrably does is catch
 mutants that aren't bugs and catch fixes that don't work; it does not
 claim to prove a fix correct.
 
+**Resume line:** built a formally-gated RTL mutation-testing harness
+and found, on real designs, that a design's own testbench misses
+13.6%–72.2% of formally-confirmed bugs depending on the design, and
+that 49.1% of naively-generated mutation candidates — including 95.2%
+of the single largest operator class, the textbook `=`-vs-`<=` mistake
+— are formally equivalent to golden, not bugs at all.
+
 ## The findings
 
 Three numbers from the current 171-task corpus (`fsm`, `uart`,
@@ -102,6 +109,40 @@ never promoted to an unbounded proof); one BMC finds a genuine
 counterexample against is `REFUTED`. `results/verdict_ladder_validation.md`
 demonstrates this discriminating on four separate input classes, not
 just running.
+
+## Verdict taxonomy
+
+- **`PROVEN-BMC(k)` means bounded model checking searched every step up
+  to depth `k` and found no counterexample. It is NOT a proof of
+  equivalence** — a counterexample could still exist beyond `k`. Stated
+  once, plainly, here: nothing in this project ever treats a bounded
+  pass as an unbounded guarantee, anywhere.
+- **The same underlying formal result is labeled differently depending
+  on which path produced it — deliberately, not by accident.** Forge's
+  corpus-generation path surfaces the raw result as `PROVEN-BMC`
+  (feeding `forge_decision=QUARANTINE`, a "kept but unrefuted" label).
+  The agent-verdict/patch path surfaces the identical raw result as
+  `PLAUSIBLE` — see `_FORMAL_TO_VERDICT`,
+  [`rtlverdict/agent/loop.py:39`](rtlverdict/agent/loop.py#L39), so a
+  reader can verify the mapping in one click. The asymmetry is driven
+  by a real difference in the cost of being wrong: a false "equivalent"
+  call on the forge path costs one benchmark task, and is independently
+  rechecked at 5x the original depth before being trusted at all (the
+  `k=200` deep-BMC promotion pass, `results/equivalent_mutant_rate.md`)
+  — cheap to catch, cheap to fix. A false "proven correct" call on the
+  patch path tells an engineer a broken fix is right — the cost of that
+  error is a shipped bug someone was told was fixed. The stricter label
+  sits on the higher-stakes path on purpose.
+- **`PROVEN-UNBOUNDED` is not producible by any code path in this
+  project, currently — forge or agent.** It exists only as a documented,
+  not-yet-real ceiling: `verdict/ladder.py`'s `VERDICTS` tuple has
+  exactly three values (`REFUTED`, `PROVEN-BMC`, `INDETERMINATE`);
+  `PROVEN-UNBOUNDED` is named in that module's own docstring as what
+  eqy *would* enable if it were trusted, and deliberately left out of
+  the enum until it is (see Limitations, eqy). Documented here rather
+  than silently dropped from the vocabulary — see
+  `docs/engineering_log.md` episode 12 for how this was verified, not
+  assumed.
 
 ## Results
 

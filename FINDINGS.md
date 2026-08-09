@@ -5,6 +5,15 @@ not by reading documentation. Append, don't rewrite — each entry is dated by
 session, not edited away when superseded (mark superseded entries explicitly
 instead).
 
+**Resume line:** built a formally-gated RTL mutation-testing harness and
+found, on real designs, that a design's own testbench misses 13.6%–72.2%
+of formally-confirmed bugs depending on the design, and that 49.1% of
+naively-generated mutation candidates — including 95.2% of the single
+largest operator class, the textbook `=`-vs-`<=` mistake — are formally
+equivalent to golden, not bugs at all. Everything below is the log of how
+those numbers (and the tooling that produced them) were actually verified,
+including every place a first answer turned out to be wrong.
+
 ---
 
 ## Environment / toolchain

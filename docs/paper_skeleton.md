@@ -159,7 +159,13 @@ this skeleton.
   produced — a bounded pass is always reported `PLAUSIBLE`, deliberately
   never promoted to a stronger label, and `PROVEN-UNBOUNDED` is not a
   value the current implementation can produce at all, on any code
-  path.
+  path. The same raw result is labeled `PROVEN-BMC` on the corpus-build
+  path and `PLAUSIBLE` on the patch path — an intentional asymmetry, not
+  an inconsistency: a false "equivalent" on the corpus-build path costs
+  one benchmark task and is independently rechecked at 5x depth before
+  being trusted; a false "proven correct" on the patch path tells an
+  engineer a broken fix is right, a strictly higher-cost error, and gets
+  the stricter label accordingly.
 - **Internal validity (agent results)**: zero live agent runs are
   reported; every agent-path number in this work describes harness
   correctness (verified with a deterministic stub), never agent
