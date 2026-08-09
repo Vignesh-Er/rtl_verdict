@@ -64,7 +64,7 @@ the real agent-verdict path, and diffs every result against a committed
 golden file — proving the ladder discriminates a real fix from a wrong
 one, not just that the scripts run.
 
-**Measured runtime: 20.8s** (`results/verify_run_report.json`'s
+**Measured runtime: 10.6s** (`results/verify_run_report.json`'s
 `elapsed_s` field, written fresh by the script itself on every run —
 never hand-typed here), against a 5-minute budget. Full accounting of
 what it checks and why: `results/verdict_ladder_validation.md`.

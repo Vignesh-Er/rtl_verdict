@@ -1,6 +1,6 @@
 {
-  "measured_at_utc": "2026-08-09T11:21:45Z",
-  "elapsed_s": 20.8,
+  "measured_at_utc": "2026-08-09T14:51:59Z",
+  "elapsed_s": 10.6,
   "max_wall_s_budget": 300.0,
   "n_forge_checks": 10,
   "passed": true,
