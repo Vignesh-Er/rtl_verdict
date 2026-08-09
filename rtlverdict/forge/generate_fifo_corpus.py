@@ -18,6 +18,7 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
+from rtlverdict import env
 from rtlverdict.forge.corpus import generate_for_design
 
 FIFO_K = 25
@@ -25,6 +26,8 @@ FIFO_TIMEOUT_S = 90
 
 
 def main() -> None:
+    env.sweep_orphaned_solvers()  # pre-flight: never start a batch with a stray solver already running
+
     repo_root = Path(__file__).parent.parent.parent
     out_dir = repo_root / "benchmarks" / "corpus_v2_fifo_addition"
 

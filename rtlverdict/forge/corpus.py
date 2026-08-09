@@ -38,6 +38,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from rtlverdict import env
 from rtlverdict.forge.mutate import apply_candidate, check_fidelity
 from rtlverdict.forge.operators import fsm, logic, signal, timing
 from rtlverdict.forge.parser import parse_file
@@ -194,6 +195,8 @@ def generate_for_design(
 
 
 def main():
+    env.sweep_orphaned_solvers()  # pre-flight: never start a batch with a stray solver already running
+
     out_dir = Path("benchmarks/corpus_v2")
     all_records: list[TaskRecord] = []
     all_stats: dict[str, dict] = {}

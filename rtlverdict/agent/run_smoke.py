@@ -35,6 +35,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
+from rtlverdict import env  # noqa: E402
 from rtlverdict.agent.loop import DEFAULT_MODEL, TaskInput, run_task  # noqa: E402
 from rtlverdict.forge.sim_confirm import run_sim  # noqa: E402
 
@@ -169,6 +170,8 @@ def main() -> None:
             file=sys.stderr,
         )
         sys.exit(1)
+
+    env.sweep_orphaned_solvers()  # pre-flight: never start a batch with a stray solver already running
 
     tasks = _load_keep_tasks(Path(args.corpus), args.n)
     if not tasks:

@@ -42,6 +42,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from rtlverdict import env
 from rtlverdict.verdict.ladder import check_bmc
 
 DESIGN_INFO = {
@@ -56,6 +57,8 @@ NEAR_TIMEOUT_FRACTION = 0.8
 
 
 def main() -> None:
+    env.sweep_orphaned_solvers()  # pre-flight: never start a batch with a stray solver already running
+
     repo_root = Path(__file__).parent.parent.parent
     tasks_path = repo_root / "benchmarks" / "corpus_v2" / "tasks.json"
     tasks = json.loads(tasks_path.read_text())

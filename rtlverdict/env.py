@@ -103,6 +103,70 @@ def build_subprocess_env() -> dict[str, str]:
     return env
 
 
+# Processes a Windows subprocess.run(timeout=...) can orphan: sby.exe spawns
+# a real descendant chain (sby-script.py -> yosys-smtbmc-script.py ->
+# yices-smt2/boolector/z3) that a timeout kills only the top of - see
+# verdict/ladder.py's _run_sby and FINDINGS.md's Day-9 pivot section for the
+# live-observed bug (a "timed out" fifo BMC check left yices-smt2 running
+# for 17+ minutes, silently stealing CPU from every subsequent check).
+_SOLVER_PROCESS_NAMES = ["yices-smt2.exe", "yosys-smtbmc.exe", "boolector.exe", "z3.exe", "sby.exe"]
+
+
+def sweep_orphaned_solvers(quiet: bool = False) -> list[dict]:
+    """Pre-flight cleanup - call ONCE at the start of a batch (corpus
+    generation, deep-BMC promotion, agent runs), never mid-batch, since a
+    legitimate in-flight check from the same run would look identical to a
+    stray and get killed too. A process from THIS list still running before
+    any work has started can only be a stray orphan from an earlier run's
+    broken timeout - kill it, or it silently steals CPU from every check in
+    the run about to start and corrupts its timing the same way.
+
+    Returns what was killed (empty list = clean start, the common case).
+    Logs to stdout unless quiet=True - this bug class must never be able to
+    come back silently. Best-effort: never raises, since a sweep failure
+    should never block the actual work it's protecting.
+    """
+    names_filter = " or ".join(f"Name='{n}'" for n in _SOLVER_PROCESS_NAMES)
+    ps_cmd = (
+        f"Get-CimInstance Win32_Process -Filter \"{names_filter}\" | "
+        "Select-Object ProcessId, Name, CreationDate | ConvertTo-Json -Compress"
+    )
+    try:
+        proc = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps_cmd],
+            capture_output=True, text=True, timeout=20,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return []  # best-effort - a broken sweep must never block real work
+
+    raw = (proc.stdout or "").strip()
+    if not raw:
+        return []
+    import json as _json
+
+    try:
+        found = _json.loads(raw)
+    except ValueError:
+        return []
+    if isinstance(found, dict):  # ConvertTo-Json gives an object (not array) for a single match
+        found = [found]
+
+    killed = []
+    for p in found:
+        pid = p.get("ProcessId")
+        if pid is None:
+            continue
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True, check=False)
+        killed.append({"pid": pid, "name": p.get("Name")})
+
+    if killed and not quiet:
+        print(
+            f"[env.sweep_orphaned_solvers] killed {len(killed)} stray solver process(es) "
+            f"left over from an earlier run before starting: {killed}"
+        )
+    return killed
+
+
 @dataclass
 class ToolStatus:
     name: str

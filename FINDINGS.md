@@ -394,6 +394,45 @@ timeout_s=5) and confirmed `check_bmc` returns promptly AND leaves no
 surviving solver process behind. Full pytest + agent-module verification
 suites re-run clean after the change.
 
+**Added a permanent pre-flight guard (`env.sweep_orphaned_solvers()`), and
+immediately made the exact mistake it exists to prevent - which is itself
+useful evidence for how this bug class actually bites.** The guard kills
+any `yices-smt2`/`yosys-smtbmc`/`boolector`/`z3`/`sby.exe` process found
+running, on the reasoning that nothing legitimate should be running yet at
+a batch's start. Its own docstring says "never mid-batch, since a
+legitimate in-flight check from the same run would look identical to a
+stray and get killed too" - and then it was tested by calling it directly
+while the (freshly-relaunched, clean) fifo generation run was still
+active in the background. It killed that run's own live BMC check,
+indistinguishable from a stray by design, because it *is* one from the
+sweep's point of view.
+
+**Diagnosed and bounded the damage without guessing.** `check_bmc` fails
+closed on anything ambiguous (an abruptly-killed process leaves a partial,
+unparseable log; the code never reads that as REFUTED or PROVEN-BMC, only
+INDETERMINATE per its own "never guess" rule) - so the reasoning was: (a)
+the kill could only have hit a candidate mid-BMC (sim/fidelity checking
+uses Icarus, not sby/yosys/yices, so those phases were never at risk), and
+(b) the only possible corrupted outcome is a spurious extra INDETERMINATE,
+never a fabricated KEEP/SILENT/REFUTED. That narrowed the suspects to
+exactly the run's two INDETERMINATE results. Re-checked both fresh:
+`fifo_blocking_nonblocking_swap_023` reconfirmed INDETERMINATE (genuine
+90s timeout, a real hard case) - `fifo_blocking_nonblocking_swap_026` came
+back **PROVEN-BMC in 36.6s**, confirming it was the corrupted one. Corrected
+that single record (verdict, runtime, discard_reason); `forge_decision`
+was unaffected either way (INDETERMINATE and PROVEN-BMC both map to
+QUARANTINE), so the corpus-wide accounting was never wrong, only one
+task's internal formal-verdict detail.
+
+**Lesson, stated plainly**: writing the safety mechanism is not the same
+as using it safely, and "this is a pre-flight-only function, see the
+docstring" is exactly the kind of comment-as-safeguard this project has
+learned not to trust. The fix is procedural, not code: never invoke
+`sweep_orphaned_solvers()` (or run any other subprocess-spawning script)
+while a batch is confirmed to be in flight - the four wired call sites
+(inside each batch script's own `main()`) are the only sanctioned call
+pattern; ad hoc interactive calls against a live background run are not.
+
 **fifo needs memory_map, and even with it, k=40 is not reliably reachable.**
 `design.yaml` already documented the constraint (plain BMC blows up around
 depth 12-14 on `mem[]`'s array theory regardless of solver backend; with
