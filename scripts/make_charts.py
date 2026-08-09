@@ -87,14 +87,17 @@ def fig1_verdict_composition(stats: dict) -> None:
 
 
 def fig2_silent_vs_coverage(stats: dict) -> None:
-    """Silent % per design as bars, DUT-only toggle coverage as overlaid
-    points - both on ONE shared 0-100% axis (not a dual-axis chart; see
-    results/silent_bugs.md §5 - the two designs' toggle-point denominators
-    span 9.4x, so this is deliberately NOT presented as a correlation claim,
-    just two same-unit measurements placed at comparable height). Every
-    bar/point is direct-labeled with its own count/denominator so the reader
-    is never dependent on reading the axis precisely or inferring precision
-    that isn't there.
+    """Two INDEPENDENT per-design series on one shared 0-100% axis (not a
+    dual-axis chart): silent-bug rate as bars, DUT-only toggle coverage as
+    overlaid points. These are NOT presented as related to each other -
+    see results/silent_bugs.md §5: the four designs' toggle-point
+    denominators span 9.4x (20-188), so cross-design toggle-coverage
+    comparison is not meaningful, and no coverage-vs-silence relationship
+    (in either direction) is claimed anywhere in this project. The two
+    series share an axis purely because both happen to be percentages: it
+    is a space-saving layout choice, not a comparison. Every bar/point is
+    direct-labeled with its own count/denominator so the reader never needs
+    to read the axis (or infer a relationship the labels don't claim).
     """
     sbr = stats["silent_bug_rate"]
     cov_by_design = {c["design"]: c["toggle"] for c in stats["coverage"]}
@@ -123,15 +126,15 @@ def fig2_silent_vs_coverage(stats: dict) -> None:
         )
 
     ax.set_ylim(0, 108)
-    ax.set_ylabel("percent (0-100%, one shared axis for both series)")
-    ax.set_title("Silent-bug rate vs. DUT-only toggle coverage, per design")
+    ax.set_ylabel("percent (0-100%)")
+    ax.set_title("Silent-bug rate and DUT-only toggle coverage, per design\n(two independent series sharing an axis - not compared, see caption)", fontsize=12.5)
     ax.legend(loc="upper left", frameon=False, fontsize=9)
     ax.spines[["top", "right"]].set_visible(False)
     fig.text(
         0.01, -0.04,
         f"n = {sbr['denominator']} real bugs (KEEP+SILENT) across {len(per_design)} designs, n=18-25 per design. "
-        f"Toggle-point denominators span 9.4x (20-188) across designs - not a like-for-like comparison. "
-        f"See results/silent_bugs.md §5/§5.1 - suggestive pattern only (exact permutation p=0.083, n=4), not a correlation claim.",
+        f"Toggle-point denominators span 9.4x (20-188) across designs, so toggle coverage is NOT comparable "
+        f"across designs here - no coverage-vs-silence relationship is claimed. See results/silent_bugs.md §5.",
         fontsize=7.5, color=CHROME["muted_ink"], wrap=True,
     )
     _save(fig, "fig2_silent_rate_vs_coverage")

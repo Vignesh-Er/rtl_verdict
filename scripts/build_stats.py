@@ -257,64 +257,16 @@ def _silent_bug_rate(designs_data: list[dict]) -> dict:
     }
 
 
-def _coverage_rank_correlation(designs_data: list[dict], coverage_data: list[dict], silent_per_design: list[dict]) -> dict:
-    """Exact permutation test on whether the (toggle coverage, silent rate)
-    ranking across the 4 designs could arise by chance. n=4 -> 4! = 24
-    possible orderings of silent-rate rank when designs are fixed in
-    coverage-rank order; exactly 2 of those 24 are perfectly monotone
-    (strictly ascending or strictly descending) - computed here via
-    itertools.permutations, never hand-counted, and cross-checked against
-    the closed form 2/n! at import time via the assert below.
-    """
-    import itertools
-
-    cov_by_design = {c["design"]: c["toggle"] for c in coverage_data}
-    rows = []
-    for d in silent_per_design:
-        cov = cov_by_design[d["design"]]
-        cov_pct = 100.0 * cov["hit"] / cov["total"] if cov["total"] else None
-        rows.append((d["design"], cov_pct, d["rate_pct"]))
-    rows_by_cov = sorted(rows, key=lambda r: r[1])
-    silent_ranks = [r[2] for r in rows_by_cov]
-
-    n = len(silent_ranks)
-    all_perms = list(itertools.permutations(silent_ranks))
-    n_permutations = len(all_perms)
-    n_monotone = sum(
-        1 for p in all_perms
-        if all(p[i] < p[i + 1] for i in range(n - 1)) or all(p[i] > p[i + 1] for i in range(n - 1))
-    )
-    assert n_permutations == 24 and n_monotone == 2, (
-        f"permutation test constants drifted: n_permutations={n_permutations}, n_monotone={n_monotone} "
-        f"- corpus size or design count changed, re-derive the quoted p-value by hand before trusting it"
-    )
-    p_value = round(n_monotone / n_permutations, 3)
-
-    return {
-        "method": (
-            "Exact two-sided permutation test: with n=4 designs fixed in ascending toggle-coverage "
-            "order, is the observed silent-rate ordering (also monotone here) one of the extreme "
-            "(fully-sorted) permutations, or typical of the full permutation space?"
-        ),
-        "designs_by_coverage_rank": [r[0] for r in rows_by_cov],
-        "n_designs": n,
-        "n_permutations": n_permutations,
-        "n_monotone": n_monotone,
-        "p_value_two_sided": p_value,
-        "note": (
-            "Suggestive, not evidence: n=4 is too small for this p-value to license a causal claim, "
-            "and it says nothing about WHY the two variables move together (see silent_rate_by_design_operator "
-            "and results/silent_bugs.md SS5.1 for the design-class-confound analysis)."
-        ),
-    }
-
-
 def _silent_rate_by_design_operator() -> list[dict]:
-    """Per-(design, operator) KEEP/SILENT breakdown - the granularity needed
-    to tell whether an elevated silent rate is a general (operator-agnostic)
-    property of a design, or concentrated in specific operator classes (the
-    hypothesis-A-vs-B question in results/silent_bugs.md SS5.1). Raw counts
-    only; most cells here are n<10 and are reported as such, never smoothed.
+    """Per-(design, operator) KEEP/SILENT breakdown - kept as descriptive,
+    transparency-only data for results/silent_bugs.md SS5.1. NOT used to
+    test any coverage-vs-silence hypothesis: an earlier version of this
+    script also computed an exact permutation test correlating toggle
+    coverage rank with silent-rate rank, but that comparison was withdrawn
+    (toggle-point denominators span 9.4x across designs - not comparable,
+    see silent_bugs.md SS5) and removed from this script rather than kept
+    around unused. Raw counts only; most cells here are n<10 and are
+    reported as such, never smoothed.
     """
     all_tasks = []
     for path in {str(p): p for p in CORPUS_FILES.values()}.values():
@@ -456,7 +408,6 @@ def main() -> None:
     print("  running fresh coverage builds (4 designs)...")
     coverage_data = _coverage()
     print(f"  coverage (DUT-only toggle): {[(c['design'], c['toggle']) for c in coverage_data]}")
-    silent_bug["coverage_rank_correlation"] = _coverage_rank_correlation(designs_data, coverage_data, silent_bug["per_design"])
 
     total_generated = sum(d["generated"] for d in designs_data)
     total_distinct = sum(d["distinct"] for d in designs_data)
@@ -475,8 +426,7 @@ def main() -> None:
                 "designs[].recorded/verdicts": [str(p.relative_to(REPO_ROOT)) for p in {str(p): p for p in CORPUS_FILES.values()}.values()],
                 "operators": "same tasks.json files, grouped by operator field",
                 "silent_bug_rate": "derived from designs[].verdicts; range/excluding_highest_design are computed sensitivity checks, not independently-sourced data",
-                "silent_bug_rate.coverage_rank_correlation": "exact permutation test (itertools.permutations) over silent_bug_rate.per_design x coverage[].toggle, computed this run",
-                "silent_rate_by_design_operator": "same tasks.json files as operators[], grouped by (design, operator) instead of operator alone",
+                "silent_rate_by_design_operator": "same tasks.json files as operators[], grouped by (design, operator) instead of operator alone - descriptive only, see results/silent_bugs.md SS5.1",
                 "coverage[].raw": "same fresh Verilator coverage build as coverage[], parsed without the dut_file filter",
                 "equivalent_mutant_promotion": "benchmarks/corpus_v2/deep_bmc_promotions.json",
                 "divergence_depth_histogram_keep": "tasks.json KEEP records' divergence_cycle field",

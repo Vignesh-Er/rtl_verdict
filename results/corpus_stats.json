@@ -1,9 +1,9 @@
 {
   "provenance": {
     "script": "scripts/build_stats.py",
-    "generated_at_utc": "2026-08-09T10:11:17Z",
+    "generated_at_utc": "2026-08-09T10:25:09Z",
     "git": {
-      "commit_sha": "08e98ae983fc80f9f523ca835dd44aa50c7239ed",
+      "commit_sha": "a9a8045491bf7ecbdc52462de95022b332a27dce",
       "dirty": true
     },
     "host_os": "win32",
@@ -16,8 +16,7 @@
       ],
       "operators": "same tasks.json files, grouped by operator field",
       "silent_bug_rate": "derived from designs[].verdicts; range/excluding_highest_design are computed sensitivity checks, not independently-sourced data",
-      "silent_bug_rate.coverage_rank_correlation": "exact permutation test (itertools.permutations) over silent_bug_rate.per_design x coverage[].toggle, computed this run",
-      "silent_rate_by_design_operator": "same tasks.json files as operators[], grouped by (design, operator) instead of operator alone",
+      "silent_rate_by_design_operator": "same tasks.json files as operators[], grouped by (design, operator) instead of operator alone - descriptive only, see results/silent_bugs.md SS5.1",
       "coverage[].raw": "same fresh Verilator coverage build as coverage[], parsed without the dut_file filter",
       "equivalent_mutant_promotion": "benchmarks/corpus_v2/deep_bmc_promotions.json",
       "divergence_depth_histogram_keep": "tasks.json KEEP records' divergence_cycle field",
@@ -238,20 +237,6 @@
       "numerator": 19,
       "denominator": 67,
       "rate_pct": 28.4
-    },
-    "coverage_rank_correlation": {
-      "method": "Exact two-sided permutation test: with n=4 designs fixed in ascending toggle-coverage order, is the observed silent-rate ordering (also monotone here) one of the extreme (fully-sorted) permutations, or typical of the full permutation space?",
-      "designs_by_coverage_rank": [
-        "fifo",
-        "uart",
-        "spi_master",
-        "fsm"
-      ],
-      "n_designs": 4,
-      "n_permutations": 24,
-      "n_monotone": 2,
-      "p_value_two_sided": 0.083,
-      "note": "Suggestive, not evidence: n=4 is too small for this p-value to license a causal claim, and it says nothing about WHY the two variables move together (see silent_rate_by_design_operator and results/silent_bugs.md SS5.1 for the design-class-confound analysis)."
     }
   },
   "silent_rate_by_design_operator": [

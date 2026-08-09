@@ -40,6 +40,12 @@ fifo's `formal_k=25` (not 40) — its own quarantine bound is weaker than
 the other three designs', see §7. That difference travels with the data
 in `corpus_stats.json`, never pooled silently with the k=40 designs.
 
+**The "DUT-only toggle cov" column is descriptive context only — it is
+not comparable across rows.** The four designs' toggle-point
+denominators span 9.4x (20 to 188); see §5 for why this column cannot
+support any cross-design coverage comparison or any coverage-vs-silence
+relationship claim.
+
 ## 4. Pooled figure
 
 **Pooled: 32/85 = 37.6%.** This averages four designs whose rates differ
@@ -47,91 +53,75 @@ by ~5.3x (13.6%–72.2%) with n=18–25 each. It is reported once, here, for
 comparability with prior work — not as a stable estimate of anything.
 Do not quote 37.6% as *the* rate; quote the range, or a specific design.
 
-## 5. Coverage confound
+## 5. Toggle coverage is not comparable across these four designs (claim withdrawn)
 
-**Before reading anything else in this section: the four designs'
-toggle-coverage denominators are not comparable to each other.** The
-total number of toggle points a design exposes is fsm=20, uart=52,
-spi_master=56, fifo=188 — the largest denominator (fifo) is **9.4x**
-the smallest (fsm), well past the ~3x span where a percentage still
-means roughly the same thing across designs. fsm's 90.0% is 18/20 — an
-18-point granularity where missing or gaining a single toggled signal
-moves the percentage by 5 points. fifo's 43.6% is 82/188 — a far finer
-granularity, much more stable to any single signal's behavior. **A
-cross-design comparison of these four percentages is not a like-for-like
-comparison; it is comparing a coarse 20-bucket measurement against a
-fine 188-bucket one and reading the difference as if both had the same
-precision.** Any pattern described below inherits this limitation and
-should be read as suggestive at most, not as a controlled comparison.
+An earlier draft of this document reported that DUT-only toggle
+coverage and silent-bug rate move together monotonically across the
+four designs (an exact permutation p=0.083). **That claim is withdrawn,
+not softened to "ambiguous."** The reason is the toggle-coverage
+denominators themselves — the total number of toggle points each
+design exposes:
 
-With that caveat stated, the four (DUT-only toggle coverage, silent %)
-points, sorted by coverage denominator alongside the raw counts behind
-each percentage:
+| design | toggle points (denominator) |
+|---|---|
+| fsm | 20 |
+| uart | 52 |
+| spi_master | 56 |
+| fifo | 188 |
 
-| design | toggle: hit/total (denominator) | DUT-only toggle cov | silent %: SILENT/n (denominator) |
-|---|---|---|---|
-| fsm | 18/**20** | 90.0% | 13/**18** — 72.2% |
-| spi_master | 38/**56** | 67.9% | 13/**25** — 52.0% |
-| uart | 26/**52** | 50.0% | 3/**20** — 15.0% |
-| fifo | 82/**188** | 43.6% | 3/**22** — 13.6% |
+fifo's denominator (188) is **9.4x** fsm's (20) — far past the ~3x span
+within which a percentage still means roughly the same thing across
+designs. fsm's 90.0% toggle coverage is 18/20: an 18-point granularity
+where missing or gaining a single toggled signal moves the percentage
+by 5 points. fifo's 43.6% is 82/188: a far finer granularity, much more
+stable to any single signal's behavior. Comparing these four
+percentages to each other is comparing a coarse 20-bucket measurement
+to a fine 188-bucket one and treating the difference as if both had the
+same precision. They do not.
 
-Secondary observation, offered with the above caveat firmly attached:
-**the four points happen to move monotonically** — the design with the
-highest toggle coverage also has the highest silent-bug rate, and the
-design with the lowest coverage has the lowest silent rate. That is the
-opposite of the hopeful reading ("more coverage means the testbench
-catches more of what it toggles"). At n=4, this exact ordering is one of
-**24 possible orderings** of 4 items; exactly **2 of the 24** are
-perfectly monotone (fully ascending or fully descending). An ordering
-this clean arises by chance with **p = 0.083** (exact two-sided
-permutation test; equivalent to Spearman rank correlation = 1.0 at
-n = 4) — see
-`corpus_stats.json`'s `silent_bug_rate.coverage_rank_correlation`. **This
-is suggestive, not evidence** — p=0.083 does not clear a conventional
-significance threshold even before accounting for the denominator
-problem above, and n=4 is too small for a correlation claim regardless
-of the p-value. It is reported because it is the honest strength of the
-pattern, not because it settles anything. See §5.1 for whether this
-pattern is even about coverage at all, as opposed to which design it
-happens to be.
+**Consequence: no coverage-vs-silence relationship is claimed here, in
+either direction.** Not "coverage predicts silence," not "coverage
+fails to predict silence" — the metric that either claim would rest on
+is not comparable across this sample. §5.1's per-operator table
+(originally framed as a test between two explanatory hypotheses) has
+been reframed accordingly: neither hypothesis was testable against a
+metric that isn't comparable at this size spread, so the hypotheses are
+dropped as conclusions and the underlying data is kept only as raw,
+descriptive transparency.
 
-What toggle coverage cannot see, mechanically, independent of the above:
-it measures whether a signal *changed value* during simulation, not
-whether a mutation's behavioral effect *propagated to a checked output*.
-A design can toggle a signal on every cycle and never assert anything
-about it. This dataset does not have the instrumentation to separate
-"the testbench never exercised the divergence" from "the testbench
-exercised it and checked the wrong thing" — both produce SILENT, and
-toggle coverage alone cannot tell them apart. That gap is exactly why
-this project measures silent-bug rate directly by formal proof, rather
-than trusting coverage as a proxy for testbench quality.
+This is also worth stating as a methodological observation independent
+of this corpus: **DUT-only toggle-coverage percentage is not a
+size-normalized metric, and comparing it across designs whose raw
+toggle-point counts differ by nearly an order of magnitude is not
+meaningful**, regardless of what project produces the numbers. Making a
+cross-design coverage comparison defensible would require a
+size-normalized metric — e.g. a per-design normalized/scaled coverage
+score, or a coverage measure with a fixed-cardinality denominator. This
+project did not have one and did not construct one; that gap is flagged
+here as unaddressed future work, not resolved by this document.
 
-## 5.1 Is this a design-class artifact?
+What toggle coverage cannot see, mechanically — a separate, standing
+limitation, independent of the comparability problem above: it measures
+whether a signal *changed value* during simulation, not whether a
+mutation's behavioral effect *propagated to a checked output*. A design
+can toggle a signal on every cycle and never assert anything about it.
+This dataset does not have the instrumentation to separate "the
+testbench never exercised the divergence" from "the testbench exercised
+it and checked the wrong thing" — both produce SILENT, and toggle
+coverage alone cannot tell them apart. That gap is exactly why this
+project measures silent-bug rate directly by formal proof rather than
+trusting coverage as a proxy for testbench quality — a reason to
+measure silent rate independently of coverage that holds even before
+the comparability problem above.
 
-Two hypotheses are consistent with §5's monotonic pattern, and this
-corpus cannot cleanly separate them:
+## 5.1 Per-operator silent rate within each design (descriptive only, not a test of anything)
 
-- **Hypothesis A (general):** toggle coverage does not predict
-  bug-catching power, as a property of the *method*, independent of
-  which design is being measured. If true, the same pattern should
-  reappear on new designs of any size or shape.
-- **Hypothesis B (design-class artifact):** fsm specifically is small
-  (`dut_signal_count=7`, `cell_count=29` — the smallest of all four
-  designs on both measures, see `corpus_stats.json`'s `designs[]`) and
-  control-heavy. On a small state machine, toggle coverage saturates
-  quickly (most signals *do* toggle in a short simulation) while the
-  testbench's actual assertions remain blind to specific state-transition
-  bugs — so design class drives both the high coverage number *and* the
-  high silent rate independently, and the two are correlated with each
-  other only because they're both correlated with "being fsm," not
-  because coverage causes or predicts silence.
-
-**To test between them, the per-operator silent rate *within* each
-design** (from `corpus_stats.json`'s `silent_rate_by_design_operator`)
-is the relevant evidence — hypothesis B predicts fsm's elevated silent
-rate should concentrate in state-transition-touching operators
-(`next_state_redirect`, `blocking_nonblocking_swap`) rather than being
-uniform across operator classes:
+Kept for transparency, not as evidence for or against any explanation
+of why silent rate varies by design — §5's coverage-based hypotheses
+are withdrawn, and this table does not stand in for them or resolve
+anything on its own. It answers only a narrower, descriptive question:
+within each design, is the silent rate spread evenly across operator
+classes, or concentrated in a few?
 
 | operator | fsm | uart | spi_master | fifo |
 |---|---|---|---|---|
@@ -141,25 +131,14 @@ uniform across operator classes:
 | `signal_substitution` | 50.0% (1/2) | 33.3% (1/3) | 60.0% (3/5) | 10.0% (1/10) |
 | `operator_swap` | 100% (1/1) | 0.0% (0/2) | 100% (2/2) | 20.0% (2/10) |
 
-**This does not cleanly support either hypothesis.** If B were true,
-fsm's silent rate should be concentrated in the state-transition
-operators and closer to the other designs' rates on non-state-touching
-operators like `constant_perturbation`. It is not: fsm's
-`constant_perturbation` rate (70.0%) is itself the highest of any design
-on that operator — elevated even where hypothesis B predicts it
-shouldn't be. That leans toward A (a general property of this design,
-not concentrated in state logic). But every one of fsm's per-operator
-cells has n≤10, several are n=1 or n=2 (100% on a single candidate is
-not a rate, it's one data point), and fifo has no `next_state_redirect`
-candidates at all and zero real bugs on `blocking_nonblocking_swap`
-(0/9 evaluated) — there is no fifo data point to compare fsm's
-state-transition operators against on two of the four rows. The cell
-counts are too small at this granularity to distinguish "elevated
-everywhere" from "elevated on the few operators that happened to get
-generated." **This is genuinely
-ambiguous at the current sample size. Reporting it as leaning toward one
-hypothesis over the other would be overclaiming what four small designs
-and per-cell counts as low as 1 can support.**
+Every cell states its own n as the second number in the fraction. At
+n≤10 per cell — several cells are n=1 or n=2, and two of fsm's rows
+have no fifo counterpart to compare against at all (fifo generated no
+`next_state_redirect` candidates, and its `blocking_nonblocking_swap`
+candidates produced zero real bugs, 0/9 evaluated) — **no
+operator-level comparison is possible from this table, within a design
+or across designs.** It is included as raw data for anyone extending
+this corpus, not as a finding.
 
 ## 6. Per-operator breakdown (across the whole corpus)
 
@@ -185,9 +164,12 @@ not independent corroboration.
   FINDINGS.md) and contributes nothing here.
 - **Testbench quality is a confound and varies across the sample.**
   These are four different testbenches, of different rigor, written by
-  the same author. §5's coverage pattern is evidence of exactly this:
-  the rate is not a fixed property of the method, it moves with which
-  testbench is being asked.
+  the same author, and the silent rate itself (§1/§3) already shows
+  this: it is not a fixed property of the method, it moves by 5.3x with
+  which testbench is being asked. (An earlier draft additionally cited
+  a toggle-coverage pattern as evidence of this — that citation is
+  withdrawn, see §5; the point about testbench-quality variation stands
+  on the silent-rate spread alone, without needing coverage as support.)
 - **`PROVEN-BMC(k)` is a bounded claim, not an unbounded proof — this
   affects which mutants a design's QUARANTINE pool contains, and
   therefore how many mutants were even eligible to become KEEP/SILENT.**
