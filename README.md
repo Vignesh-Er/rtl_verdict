@@ -4,9 +4,13 @@
 
 A license-free, 100%-open-source-toolchain harness (Yosys, SymbiYosys,
 Verilator, Icarus Verilog, Z3, Boolector, Yices — no commercial EDA, no
-FPGA hardware) that mutates Verilog RTL, formally filters the mutants
-against golden behavior, and hands the survivors to debugging agents as
-ground-truth benchmark tasks with a formal verdict on every proposed fix.
+FPGA hardware) that mutates Verilog RTL, formally filters out the
+equivalent mutants before they ever reach an agent, and formally
+refutes incorrect fixes on the patch path — a bounded pass on a
+proposed fix is reported `PLAUSIBLE`, never promoted to a claim of
+proof (see Limitations). What this tool demonstrably does is catch
+mutants that aren't bugs and catch fixes that don't work; it does not
+claim to prove a fix correct.
 
 ## The findings
 
@@ -142,10 +146,16 @@ Prominent on purpose — a claim's scope is part of the claim.
 - **The formal ladder is bounded model checking only, currently, and
   every pass it reports is bounded.** `k=40` for `fsm`/`uart`/`spi_master`,
   `k=25` (with `memory_map`, required for its `mem[]` array) for
-  `fifo`. `PROVEN-BMC(k)` is never promoted to an unbounded equivalence
-  claim anywhere in this codebase — see
-  `results/verdict_ladder_validation.md` §5 for why `PROVEN-UNBOUNDED`
-  doesn't exist in the implementation at all yet (eqy point below).
+  `fifo`. **Neither `PROVEN-BMC` nor `PROVEN-UNBOUNDED` is ever surfaced
+  as the verdict on a proposed patch, on any run this project has
+  produced.** A bounded pass is always reported `PLAUSIBLE` — the raw
+  `PROVEN-BMC` result is recorded internally but deliberately never
+  promoted to the headline label, so it never reads as more certain
+  than it is. `PROVEN-UNBOUNDED` doesn't exist in the implementation at
+  all yet, on any code path (eqy point below) — see
+  `results/verdict_ladder_validation.md` §5/§7 for the code-level proof
+  of both (63/63 committed patch-path records checked; zero surface
+  either string).
 - **The coverage-vs-silent-bug-rate relationship was investigated and
   WITHDRAWN, not softened.** The four designs' toggle-coverage
   denominators span 9.4x (20 to 188 toggle points) — far past the point

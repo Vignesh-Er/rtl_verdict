@@ -20,10 +20,13 @@ disclaimer as `results/agent_pilot.md`.
 ## Answers, up front (full reasoning in §5–§8)
 
 **Which verdict classes has the agent-verdict path now demonstrably
-emitted?** `PLAUSIBLE`, `REFUTED`, and `INVALID-PATCH` — all three
-observed in this document, 12/12 each, on real submitted patches through
-the real `check_patch`/`check_bmc` pipeline. `NO-PATCH` was separately
-demonstrated in Phase 2's cap-trip demo.
+emitted?** `PLAUSIBLE` (24/24 — 12 from C1, 12 from C2), `REFUTED`
+(12/12, C3), and `INVALID-PATCH` (12/12, C4) — all observed in this
+document, on real submitted patches through the real
+`check_patch`/`check_bmc` pipeline. `NO-PATCH` was separately
+demonstrated in Phase 2's cap-trip demo. **`PROVEN-BMC` and
+`PROVEN-UNBOUNDED` are NOT in this list and never will be from this
+code path** — see the next answer and §5/§7's table.
 
 **Which remain unreached?** `INDETERMINATE` and `ERROR`. Neither is a
 gap in the ladder itself — both code paths are exercised elsewhere
@@ -200,10 +203,21 @@ reimplementation.** `rtlverdict/forge/corpus.py:46` and
 `rtlverdict/agent/loop.py:28` both do
 `from rtlverdict.verdict.ladder import check_bmc` and call that
 identical function. The P0 deep-BMC result
-(`fifo_blocking_nonblocking_swap_026`, `PROVEN-BMC`, 36.6s, k=200) and
-every C1/C2 `PROVEN-BMC` row in this document ran through the exact
-same `check_bmc()` implementation, the exact same `sby`/`smtbmc yices`
-invocation shape, the exact same three-value `VERDICTS` enum.
+(`fifo_blocking_nonblocking_swap_026`, raw ladder verdict `PROVEN-BMC`,
+36.6s, k=200 — a forge-path record, surfaced there as `equivalence_to_golden`,
+never as a patch-path `final_verdict`) and every C1/C2 row in this
+document — surfaced as `PLAUSIBLE`, with raw ladder verdict `PROVEN-BMC`
+underneath, per §5 — ran through the exact same `check_bmc()`
+implementation, the exact same `sby`/`smtbmc yices` invocation shape,
+the exact same three-value `VERDICTS` enum. **Precision matters here:**
+no row anywhere in this document is a "`PROVEN-BMC` row" in the sense of
+that being its surfaced identity — every C1/C2 row's surfaced
+`final_verdict` is `PLAUSIBLE`, full stop; `PROVEN-BMC` only ever
+appears as the raw, internal `verdict_detail.formal_verdict` value one
+level down. Referring to these as "`PROVEN-BMC` rows" as loose shorthand
+would directly contradict §5/§7's own claim that `PROVEN-BMC` is never
+surfaced on the patch path — so this document doesn't use that
+shorthand, here or anywhere else.
 
 **What differs is entirely caller-side, not ladder-side:**
 
@@ -248,6 +262,8 @@ marked as such):
 | `NO-PATCH` | yes | Phase 2's cap-trip demo (`max_iterations` tripped, no `submit_patch` call ever made) — a `run_task()`-level outcome, not one `check_patch` can produce, since `check_patch` is never called without a submitted patch |
 | `INDETERMINATE` | **no** | never observed via `run_task`/`check_patch` in Phase 2 or this document. The `INDETERMINATE` code path in `check_bmc` itself IS exercised and documented elsewhere (e.g. the `edge_swap` operator's pattern in `results/equivalent_mutant_rate.md`, and the deliberate 5s timeout test in `scratch_verify/verify_agent_module.py`'s `patch_check.py` checks) — but not through this specific harness on a real formal timeout. Remains open: a genuine Phase 2 run, or a dedicated test with an artificially tiny `formal_timeout_s`, would close this. |
 | `ERROR` | partially | exercised at the unit level in `scratch_verify/verify_agent_module.py` (a provider exception ends the task with `ERROR`) — not through this real 12-task subset, since no provider call in this document can fail (the stub cannot throw). |
+| `PROVEN-BMC` (as a surfaced `final_verdict`) | **never — by design** | `_FORMAL_TO_VERDICT` in `rtlverdict/agent/loop.py` maps every raw `PROVEN-BMC` to `final_verdict=PLAUSIBLE`, unconditionally, on every code path. This is not a gap; it is the deliberate "never promote a bounded pass to more certainty than it has" rule, predating this document. Confirmed empirically as well as by reading the code: across every committed `trajectory.json` this project has ever produced (63 records, Phase 2 + this document), `final_verdict` is never once `PROVEN-BMC`. |
+| `PROVEN-UNBOUNDED` (anywhere, any path) | **never — does not exist in the codebase** | `verdict/ladder.py`'s `VERDICTS` tuple has exactly three values (`REFUTED`, `PROVEN-BMC`, `INDETERMINATE`); `PROVEN-UNBOUNDED` is not a value this implementation can produce, on the patch path or the forge path, until eqy is trustworthy again (see §5). |
 
 **No expectation failed in a way that required stopping.** Every
 condition matched its expected verdict class on every one of 48

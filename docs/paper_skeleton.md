@@ -11,11 +11,16 @@ this skeleton.
   evaluation both typically depend on commercial EDA (JasperGold, VCS)
   for the formal backend — license-gated, unavailable to most
   academic/independent work.
-- Contribution: an end-to-end, 100%-open-source-toolchain harness
-  (mutation generation → formal ground-truth filtering → agent debug
-  tooling → formal patch verdict) built entirely on Yosys/SymbiYosys/
-  Icarus/Verilator/Z3/Boolector/Yices, no commercial tool anywhere in
-  the pipeline.
+- Contribution: an end-to-end, 100%-open-source-toolchain harness that
+  formally filters out equivalent mutants before they reach an agent
+  and formally refutes incorrect fixes on the patch path (mutation
+  generation → formal ground-truth filtering → agent debug tooling →
+  formal patch verdict), built entirely on Yosys/SymbiYosys/Icarus/
+  Verilator/Z3/Boolector/Yices, no commercial tool anywhere in the
+  pipeline. A bounded pass on a proposed fix is reported `PLAUSIBLE`,
+  never promoted to a proof — the method demonstrably refutes wrong
+  fixes and filters non-bugs; it does not claim to prove a fix correct
+  (see Threats to Validity).
 - Headline empirical findings: a design's own testbench misses between
   13.6% and 72.2% of formally-confirmed real bugs depending on the
   design (no single rate); 49.1% of naively-generated mutation
@@ -148,7 +153,13 @@ this skeleton.
   unbounded-capable rung) is disabled for discard decisions after a
   control test produced a false proof — traced to the invocation, not
   a confirmed eqy defect, but unresolved, so no unbounded equivalence
-  claim is made anywhere by this method currently.
+  claim is made anywhere by this method currently. Concretely: neither
+  a raw `PROVEN-BMC` nor a `PROVEN-UNBOUNDED` verdict is ever surfaced
+  as the verdict on a proposed patch on any run this method has
+  produced — a bounded pass is always reported `PLAUSIBLE`, deliberately
+  never promoted to a stronger label, and `PROVEN-UNBOUNDED` is not a
+  value the current implementation can produce at all, on any code
+  path.
 - **Internal validity (agent results)**: zero live agent runs are
   reported; every agent-path number in this work describes harness
   correctness (verified with a deterministic stub), never agent
