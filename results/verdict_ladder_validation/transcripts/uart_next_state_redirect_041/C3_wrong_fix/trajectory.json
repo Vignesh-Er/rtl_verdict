@@ -1,0 +1,39 @@
+{
+  "task_id": "uart_next_state_redirect_041",
+  "arm": "A",
+  "model": "stub-golden-revert-v1",
+  "provider": "stub-fixed-patch",
+  "seed": 0,
+  "max_iterations": 15,
+  "max_tokens_per_turn": 4096,
+  "max_total_tokens": 100000,
+  "max_wall_time_s": 600.0,
+  "started_at": "2026-08-09T11:09:34Z",
+  "iterations": [
+    {
+      "iteration": 0,
+      "role": "assistant",
+      "text": "(stub C3_wrong_fix)",
+      "tool_calls": [],
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "wall_time_s": 0.0
+    }
+  ],
+  "patch_submitted": "module uart (\n    input  wire       clk,\n    input  wire       rst_n,\n    input  wire       tx_start,\n    input  wire [7:0] tx_data,\n    output reg        tx,\n    output reg        tx_busy\n);\n    localparam IDLE = 2'd0, START_BIT = 2'd1, DATA_BITS = 2'd2, STOP_BIT = 2'd3;\n    reg [1:0] state;\n    reg [2:0] bit_index;\n    reg [7:0] shift_reg;\n\n    always @(posedge clk) begin\n        if (!rst_n) begin\n            state     <= IDLE;\n            bit_index <= 3'd0;\n            shift_reg <= 8'd0;\n            tx        <= 1'b1;\n            tx_busy   <= 1'b1;\n        end else begin\n            case (state)\n                IDLE: begin\n                    tx <= 1'b1;\n                    if (tx_start) begin\n                        state     <= START_BIT;\n                        shift_reg <= tx_data;\n                        tx_busy   <= 1'b1;\n                    end\n                end\n                START_BIT: begin\n                    tx        <= 1'b0;\n                    state     <= DATA_BITS;\n                    bit_index <= 3'd0;\n                end\n                DATA_BITS: begin\n                    tx <= shift_reg[bit_index];\n                    if (bit_index == 3'd7) begin\n                        state <= STOP_BIT;\n                    end else begin\n                        bit_index <= bit_index + 3'd1;\n                    end\n                end\n                STOP_BIT: begin\n                    tx      <= 1'b1;\n                    tx_busy <= 1'b0;\n                    state   <= IDLE;\n                end\n                default: state <= IDLE;\n            endcase\n        end\n    end\nendmodule\n",
+  "invalid_patch_reason": null,
+  "final_verdict": "REFUTED",
+  "verdict_detail": {
+    "formal_verdict": "REFUTED",
+    "k": 40,
+    "engine": "smtbmc yices",
+    "runtime_s": 1.65,
+    "divergence_cycle": 1,
+    "explanation": "stub condition C3_wrong_fix"
+  },
+  "total_input_tokens": 0,
+  "total_output_tokens": 0,
+  "wall_time_s": 0.0,
+  "stop_reason": "patch_submitted",
+  "error": null
+}

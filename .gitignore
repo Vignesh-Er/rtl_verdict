@@ -35,3 +35,5 @@ results/environment.json.bak
 results/agent_pilot/transcripts/*/*/formal/
 results/agent_pilot/transcripts/*/*/tools/
 results/agent_pilot/transcripts/_caps_demo/*/tools/
+results/verdict_ladder_validation/transcripts/*/*/formal/
+results/verdict_ladder_validation/transcripts/*/*/tools/

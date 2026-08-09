@@ -1,0 +1,39 @@
+{
+  "task_id": "spi_master_next_state_redirect_048",
+  "arm": "A",
+  "model": "stub-golden-revert-v1",
+  "provider": "stub-fixed-patch",
+  "seed": 0,
+  "max_iterations": 15,
+  "max_tokens_per_turn": 4096,
+  "max_total_tokens": 100000,
+  "max_wall_time_s": 600.0,
+  "started_at": "2026-08-09T11:09:02Z",
+  "iterations": [
+    {
+      "iteration": 0,
+      "role": "assistant",
+      "text": "(stub C2_true_fix_region)",
+      "tool_calls": [],
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "wall_time_s": 0.0
+    }
+  ],
+  "patch_submitted": "module spi_master (\n    input  wire       clk,\n    input  wire       rst_n,\n    input  wire       start,\n    input  wire [7:0] tx_data,\n    output reg        sclk,\n    output reg        cs_n,\n    output reg        mosi,\n    output reg        busy\n);\n    reg [1:0] state;\n    localparam IDLE = 2'd0, XFER = 2'd1, DONE = 2'd2;\n    reg [2:0] bit_count;\n    reg [7:0] shift_reg;\n\n    always @(posedge clk) begin\n        if (!rst_n) begin\n            state     <= IDLE;\n            sclk      <= 1'b0;\n            cs_n      <= 1'b1;\n            mosi      <= 1'b0;\n            busy      <= 1'b0;\n            bit_count <= 3'd0;\n            shift_reg <= 8'd0;\n        end else begin\n            case (state)\n                IDLE: begin\n                    sclk <= 1'b0;\n                    if (start) begin\n                        state     <= XFER;\n                        cs_n      <= 1'b0;\n                        busy      <= 1'b1;\n                        shift_reg <= tx_data;\n                        bit_count <= 3'd0;\n                    end\n                end\n                XFER: begin\n                    sclk <= ~sclk;\n                    if (sclk) begin\n                        if (bit_count == 3'd7) begin\n                            state <= DONE;\n                        end else begin\n                            bit_count <= bit_count + 3'd1;\n                            shift_reg <= {shift_reg[6:0], 1'b0};\n                        end\n                    end\n                    mosi <= shift_reg[7];\n                end\n                DONE: begin\n                    cs_n  <= 1'b1;\n                    busy  <= 1'b0;\n                    state <= IDLE;\n                end\n                default: state <= IDLE;\n            endcase\n        end\n    end\nendmodule\n",
+  "invalid_patch_reason": null,
+  "final_verdict": "PLAUSIBLE",
+  "verdict_detail": {
+    "formal_verdict": "PROVEN-BMC",
+    "k": 40,
+    "engine": "smtbmc yices",
+    "runtime_s": 2.34,
+    "divergence_cycle": null,
+    "explanation": "stub condition C2_true_fix_region"
+  },
+  "total_input_tokens": 0,
+  "total_output_tokens": 0,
+  "wall_time_s": 0.0,
+  "stop_reason": "patch_submitted",
+  "error": null
+}

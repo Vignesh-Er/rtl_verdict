@@ -1,0 +1,548 @@
+{
+  "purpose": "Phase 2B: prove the formal ladder discriminates across input classes, not just that the harness runs.",
+  "stub_model_name": "stub-golden-revert-v1",
+  "n_tasks": 12,
+  "n_conditions": 4,
+  "total_rows": 48,
+  "ladder_verdicts_enum": [
+    "REFUTED",
+    "PROVEN-BMC",
+    "INDETERMINATE"
+  ],
+  "conditions": {
+    "C1_true_fix_full_revert": {
+      "expected_final_verdict": "PLAUSIBLE",
+      "distribution": {
+        "PLAUSIBLE": 12
+      },
+      "n": 12
+    },
+    "C2_true_fix_region": {
+      "expected_final_verdict": "PLAUSIBLE",
+      "distribution": {
+        "PLAUSIBLE": 12
+      },
+      "n": 12
+    },
+    "C3_wrong_fix": {
+      "expected_final_verdict": "REFUTED",
+      "distribution": {
+        "REFUTED": 12
+      },
+      "n": 12
+    },
+    "C4_invalid_patch": {
+      "expected_final_verdict": "INVALID-PATCH",
+      "distribution": {
+        "INVALID-PATCH": 12
+      },
+      "n": 12
+    }
+  },
+  "rows": [
+    {
+      "task_id": "fifo_operator_swap_004",
+      "design": "fifo",
+      "condition": "C1_true_fix_full_revert",
+      "final_verdict": "PLAUSIBLE",
+      "raw_formal_verdict": "PROVEN-BMC",
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": null,
+      "wall_time_s": 35.15
+    },
+    {
+      "task_id": "fifo_signal_substitution_037",
+      "design": "fifo",
+      "condition": "C1_true_fix_full_revert",
+      "final_verdict": "PLAUSIBLE",
+      "raw_formal_verdict": "PROVEN-BMC",
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": null,
+      "wall_time_s": 34.11
+    },
+    {
+      "task_id": "fifo_signal_substitution_033",
+      "design": "fifo",
+      "condition": "C1_true_fix_full_revert",
+      "final_verdict": "PLAUSIBLE",
+      "raw_formal_verdict": "PROVEN-BMC",
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": null,
+      "wall_time_s": 34.14
+    },
+    {
+      "task_id": "fsm_constant_perturbation_005",
+      "design": "fsm",
+      "condition": "C1_true_fix_full_revert",
+      "final_verdict": "PLAUSIBLE",
+      "raw_formal_verdict": "PROVEN-BMC",
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": null,
+      "wall_time_s": 2.18
+    },
+    {
+      "task_id": "fsm_constant_perturbation_008",
+      "design": "fsm",
+      "condition": "C1_true_fix_full_revert",
+      "final_verdict": "PLAUSIBLE",
+      "raw_formal_verdict": "PROVEN-BMC",
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": null,
+      "wall_time_s": 1.911
+    },
+    {
+      "task_id": "fsm_next_state_redirect_032",
+      "design": "fsm",
+      "condition": "C1_true_fix_full_revert",
+      "final_verdict": "PLAUSIBLE",
+      "raw_formal_verdict": "PROVEN-BMC",
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": null,
+      "wall_time_s": 2.03
+    },
+    {
+      "task_id": "spi_master_constant_perturbation_003",
+      "design": "spi_master",
+      "condition": "C1_true_fix_full_revert",
+      "final_verdict": "PLAUSIBLE",
+      "raw_formal_verdict": "PROVEN-BMC",
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": null,
+      "wall_time_s": 2.56
+    },
+    {
+      "task_id": "spi_master_next_state_redirect_047",
+      "design": "spi_master",
+      "condition": "C1_true_fix_full_revert",
+      "final_verdict": "PLAUSIBLE",
+      "raw_formal_verdict": "PROVEN-BMC",
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": null,
+      "wall_time_s": 2.25
+    },
+    {
+      "task_id": "spi_master_next_state_redirect_048",
+      "design": "spi_master",
+      "condition": "C1_true_fix_full_revert",
+      "final_verdict": "PLAUSIBLE",
+      "raw_formal_verdict": "PROVEN-BMC",
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": null,
+      "wall_time_s": 2.13
+    },
+    {
+      "task_id": "uart_constant_perturbation_005",
+      "design": "uart",
+      "condition": "C1_true_fix_full_revert",
+      "final_verdict": "PLAUSIBLE",
+      "raw_formal_verdict": "PROVEN-BMC",
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": null,
+      "wall_time_s": 2.65
+    },
+    {
+      "task_id": "uart_signal_substitution_037",
+      "design": "uart",
+      "condition": "C1_true_fix_full_revert",
+      "final_verdict": "PLAUSIBLE",
+      "raw_formal_verdict": "PROVEN-BMC",
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": null,
+      "wall_time_s": 2.66
+    },
+    {
+      "task_id": "uart_next_state_redirect_041",
+      "design": "uart",
+      "condition": "C1_true_fix_full_revert",
+      "final_verdict": "PLAUSIBLE",
+      "raw_formal_verdict": "PROVEN-BMC",
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": null,
+      "wall_time_s": 2.42
+    },
+    {
+      "task_id": "fifo_operator_swap_004",
+      "design": "fifo",
+      "condition": "C2_true_fix_region",
+      "final_verdict": "PLAUSIBLE",
+      "raw_formal_verdict": "PROVEN-BMC",
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": null,
+      "wall_time_s": 33.874,
+      "region_patch_equals_golden": true
+    },
+    {
+      "task_id": "fifo_signal_substitution_037",
+      "design": "fifo",
+      "condition": "C2_true_fix_region",
+      "final_verdict": "PLAUSIBLE",
+      "raw_formal_verdict": "PROVEN-BMC",
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": null,
+      "wall_time_s": 34.206,
+      "region_patch_equals_golden": true
+    },
+    {
+      "task_id": "fifo_signal_substitution_033",
+      "design": "fifo",
+      "condition": "C2_true_fix_region",
+      "final_verdict": "PLAUSIBLE",
+      "raw_formal_verdict": "PROVEN-BMC",
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": null,
+      "wall_time_s": 34.271,
+      "region_patch_equals_golden": true
+    },
+    {
+      "task_id": "fsm_constant_perturbation_005",
+      "design": "fsm",
+      "condition": "C2_true_fix_region",
+      "final_verdict": "PLAUSIBLE",
+      "raw_formal_verdict": "PROVEN-BMC",
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": null,
+      "wall_time_s": 2.321,
+      "region_patch_equals_golden": true
+    },
+    {
+      "task_id": "fsm_constant_perturbation_008",
+      "design": "fsm",
+      "condition": "C2_true_fix_region",
+      "final_verdict": "PLAUSIBLE",
+      "raw_formal_verdict": "PROVEN-BMC",
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": null,
+      "wall_time_s": 2.154,
+      "region_patch_equals_golden": true
+    },
+    {
+      "task_id": "fsm_next_state_redirect_032",
+      "design": "fsm",
+      "condition": "C2_true_fix_region",
+      "final_verdict": "PLAUSIBLE",
+      "raw_formal_verdict": "PROVEN-BMC",
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": null,
+      "wall_time_s": 2.163,
+      "region_patch_equals_golden": true
+    },
+    {
+      "task_id": "spi_master_constant_perturbation_003",
+      "design": "spi_master",
+      "condition": "C2_true_fix_region",
+      "final_verdict": "PLAUSIBLE",
+      "raw_formal_verdict": "PROVEN-BMC",
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": null,
+      "wall_time_s": 2.372,
+      "region_patch_equals_golden": true
+    },
+    {
+      "task_id": "spi_master_next_state_redirect_047",
+      "design": "spi_master",
+      "condition": "C2_true_fix_region",
+      "final_verdict": "PLAUSIBLE",
+      "raw_formal_verdict": "PROVEN-BMC",
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": null,
+      "wall_time_s": 2.559,
+      "region_patch_equals_golden": true
+    },
+    {
+      "task_id": "spi_master_next_state_redirect_048",
+      "design": "spi_master",
+      "condition": "C2_true_fix_region",
+      "final_verdict": "PLAUSIBLE",
+      "raw_formal_verdict": "PROVEN-BMC",
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": null,
+      "wall_time_s": 2.478,
+      "region_patch_equals_golden": true
+    },
+    {
+      "task_id": "uart_constant_perturbation_005",
+      "design": "uart",
+      "condition": "C2_true_fix_region",
+      "final_verdict": "PLAUSIBLE",
+      "raw_formal_verdict": "PROVEN-BMC",
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": null,
+      "wall_time_s": 2.534,
+      "region_patch_equals_golden": true
+    },
+    {
+      "task_id": "uart_signal_substitution_037",
+      "design": "uart",
+      "condition": "C2_true_fix_region",
+      "final_verdict": "PLAUSIBLE",
+      "raw_formal_verdict": "PROVEN-BMC",
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": null,
+      "wall_time_s": 2.377,
+      "region_patch_equals_golden": true
+    },
+    {
+      "task_id": "uart_next_state_redirect_041",
+      "design": "uart",
+      "condition": "C2_true_fix_region",
+      "final_verdict": "PLAUSIBLE",
+      "raw_formal_verdict": "PROVEN-BMC",
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": null,
+      "wall_time_s": 2.525,
+      "region_patch_equals_golden": true
+    },
+    {
+      "task_id": "fifo_operator_swap_004",
+      "design": "fifo",
+      "condition": "C3_wrong_fix",
+      "final_verdict": "REFUTED",
+      "raw_formal_verdict": "REFUTED",
+      "divergence_cycle_found": 2,
+      "invalid_patch_reason": null,
+      "wall_time_s": 1.787,
+      "donor_task_id": "fifo_constant_perturbation_016"
+    },
+    {
+      "task_id": "fifo_signal_substitution_037",
+      "design": "fifo",
+      "condition": "C3_wrong_fix",
+      "final_verdict": "REFUTED",
+      "raw_formal_verdict": "REFUTED",
+      "divergence_cycle_found": 2,
+      "invalid_patch_reason": null,
+      "wall_time_s": 1.669,
+      "donor_task_id": "fifo_constant_perturbation_016"
+    },
+    {
+      "task_id": "fifo_signal_substitution_033",
+      "design": "fifo",
+      "condition": "C3_wrong_fix",
+      "final_verdict": "REFUTED",
+      "raw_formal_verdict": "REFUTED",
+      "divergence_cycle_found": 2,
+      "invalid_patch_reason": null,
+      "wall_time_s": 1.597,
+      "donor_task_id": "fifo_constant_perturbation_016"
+    },
+    {
+      "task_id": "fsm_constant_perturbation_005",
+      "design": "fsm",
+      "condition": "C3_wrong_fix",
+      "final_verdict": "REFUTED",
+      "raw_formal_verdict": "REFUTED",
+      "divergence_cycle_found": 2,
+      "invalid_patch_reason": null,
+      "wall_time_s": 1.555,
+      "donor_task_id": "fsm_constant_perturbation_006"
+    },
+    {
+      "task_id": "fsm_constant_perturbation_008",
+      "design": "fsm",
+      "condition": "C3_wrong_fix",
+      "final_verdict": "REFUTED",
+      "raw_formal_verdict": "REFUTED",
+      "divergence_cycle_found": 2,
+      "invalid_patch_reason": null,
+      "wall_time_s": 1.641,
+      "donor_task_id": "fsm_constant_perturbation_005"
+    },
+    {
+      "task_id": "fsm_next_state_redirect_032",
+      "design": "fsm",
+      "condition": "C3_wrong_fix",
+      "final_verdict": "REFUTED",
+      "raw_formal_verdict": "REFUTED",
+      "divergence_cycle_found": 2,
+      "invalid_patch_reason": null,
+      "wall_time_s": 1.683,
+      "donor_task_id": "fsm_constant_perturbation_005"
+    },
+    {
+      "task_id": "spi_master_constant_perturbation_003",
+      "design": "spi_master",
+      "condition": "C3_wrong_fix",
+      "final_verdict": "REFUTED",
+      "raw_formal_verdict": "REFUTED",
+      "divergence_cycle_found": 1,
+      "invalid_patch_reason": null,
+      "wall_time_s": 1.637,
+      "donor_task_id": "spi_master_constant_perturbation_005"
+    },
+    {
+      "task_id": "spi_master_next_state_redirect_047",
+      "design": "spi_master",
+      "condition": "C3_wrong_fix",
+      "final_verdict": "REFUTED",
+      "raw_formal_verdict": "REFUTED",
+      "divergence_cycle_found": 1,
+      "invalid_patch_reason": null,
+      "wall_time_s": 1.946,
+      "donor_task_id": "spi_master_constant_perturbation_003"
+    },
+    {
+      "task_id": "spi_master_next_state_redirect_048",
+      "design": "spi_master",
+      "condition": "C3_wrong_fix",
+      "final_verdict": "REFUTED",
+      "raw_formal_verdict": "REFUTED",
+      "divergence_cycle_found": 1,
+      "invalid_patch_reason": null,
+      "wall_time_s": 1.688,
+      "donor_task_id": "spi_master_constant_perturbation_003"
+    },
+    {
+      "task_id": "uart_constant_perturbation_005",
+      "design": "uart",
+      "condition": "C3_wrong_fix",
+      "final_verdict": "REFUTED",
+      "raw_formal_verdict": "REFUTED",
+      "divergence_cycle_found": 2,
+      "invalid_patch_reason": null,
+      "wall_time_s": 1.876,
+      "donor_task_id": "uart_constant_perturbation_006"
+    },
+    {
+      "task_id": "uart_signal_substitution_037",
+      "design": "uart",
+      "condition": "C3_wrong_fix",
+      "final_verdict": "REFUTED",
+      "raw_formal_verdict": "REFUTED",
+      "divergence_cycle_found": 1,
+      "invalid_patch_reason": null,
+      "wall_time_s": 1.803,
+      "donor_task_id": "uart_constant_perturbation_005"
+    },
+    {
+      "task_id": "uart_next_state_redirect_041",
+      "design": "uart",
+      "condition": "C3_wrong_fix",
+      "final_verdict": "REFUTED",
+      "raw_formal_verdict": "REFUTED",
+      "divergence_cycle_found": 1,
+      "invalid_patch_reason": null,
+      "wall_time_s": 1.856,
+      "donor_task_id": "uart_constant_perturbation_005"
+    },
+    {
+      "task_id": "fifo_operator_swap_004",
+      "design": "fifo",
+      "condition": "C4_invalid_patch",
+      "final_verdict": "INVALID-PATCH",
+      "raw_formal_verdict": null,
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": "parse failed: 5 diagnostics",
+      "wall_time_s": 0.003
+    },
+    {
+      "task_id": "fifo_signal_substitution_037",
+      "design": "fifo",
+      "condition": "C4_invalid_patch",
+      "final_verdict": "INVALID-PATCH",
+      "raw_formal_verdict": null,
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": "parse failed: 5 diagnostics",
+      "wall_time_s": 0.003
+    },
+    {
+      "task_id": "fifo_signal_substitution_033",
+      "design": "fifo",
+      "condition": "C4_invalid_patch",
+      "final_verdict": "INVALID-PATCH",
+      "raw_formal_verdict": null,
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": "parse failed: 5 diagnostics",
+      "wall_time_s": 0.002
+    },
+    {
+      "task_id": "fsm_constant_perturbation_005",
+      "design": "fsm",
+      "condition": "C4_invalid_patch",
+      "final_verdict": "INVALID-PATCH",
+      "raw_formal_verdict": null,
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": "parse failed: 5 diagnostics",
+      "wall_time_s": 0.002
+    },
+    {
+      "task_id": "fsm_constant_perturbation_008",
+      "design": "fsm",
+      "condition": "C4_invalid_patch",
+      "final_verdict": "INVALID-PATCH",
+      "raw_formal_verdict": null,
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": "parse failed: 5 diagnostics",
+      "wall_time_s": 0.055
+    },
+    {
+      "task_id": "fsm_next_state_redirect_032",
+      "design": "fsm",
+      "condition": "C4_invalid_patch",
+      "final_verdict": "INVALID-PATCH",
+      "raw_formal_verdict": null,
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": "parse failed: 5 diagnostics",
+      "wall_time_s": 0.002
+    },
+    {
+      "task_id": "spi_master_constant_perturbation_003",
+      "design": "spi_master",
+      "condition": "C4_invalid_patch",
+      "final_verdict": "INVALID-PATCH",
+      "raw_formal_verdict": null,
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": "parse failed: 5 diagnostics",
+      "wall_time_s": 0.004
+    },
+    {
+      "task_id": "spi_master_next_state_redirect_047",
+      "design": "spi_master",
+      "condition": "C4_invalid_patch",
+      "final_verdict": "INVALID-PATCH",
+      "raw_formal_verdict": null,
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": "parse failed: 5 diagnostics",
+      "wall_time_s": 0.003
+    },
+    {
+      "task_id": "spi_master_next_state_redirect_048",
+      "design": "spi_master",
+      "condition": "C4_invalid_patch",
+      "final_verdict": "INVALID-PATCH",
+      "raw_formal_verdict": null,
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": "parse failed: 5 diagnostics",
+      "wall_time_s": 0.002
+    },
+    {
+      "task_id": "uart_constant_perturbation_005",
+      "design": "uart",
+      "condition": "C4_invalid_patch",
+      "final_verdict": "INVALID-PATCH",
+      "raw_formal_verdict": null,
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": "parse failed: 5 diagnostics",
+      "wall_time_s": 0.002
+    },
+    {
+      "task_id": "uart_signal_substitution_037",
+      "design": "uart",
+      "condition": "C4_invalid_patch",
+      "final_verdict": "INVALID-PATCH",
+      "raw_formal_verdict": null,
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": "parse failed: 5 diagnostics",
+      "wall_time_s": 0.002
+    },
+    {
+      "task_id": "uart_next_state_redirect_041",
+      "design": "uart",
+      "condition": "C4_invalid_patch",
+      "final_verdict": "INVALID-PATCH",
+      "raw_formal_verdict": null,
+      "divergence_cycle_found": null,
+      "invalid_patch_reason": "parse failed: 5 diagnostics",
+      "wall_time_s": 0.003
+    }
+  ]
+}

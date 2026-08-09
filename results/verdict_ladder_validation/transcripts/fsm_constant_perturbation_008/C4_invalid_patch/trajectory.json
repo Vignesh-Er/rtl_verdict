@@ -1,0 +1,35 @@
+{
+  "task_id": "fsm_constant_perturbation_008",
+  "arm": "A",
+  "model": "stub-golden-revert-v1",
+  "provider": "stub-fixed-patch",
+  "seed": 0,
+  "max_iterations": 15,
+  "max_tokens_per_turn": 4096,
+  "max_total_tokens": 100000,
+  "max_wall_time_s": 600.0,
+  "started_at": "2026-08-09T11:09:37Z",
+  "iterations": [
+    {
+      "iteration": 0,
+      "role": "assistant",
+      "text": "(stub C4_invalid_patch)",
+      "tool_calls": [],
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "wall_time_s": 0.0
+    }
+  ],
+  "patch_submitted": "this is not verilog at all {{{ syntax error on purpose",
+  "invalid_patch_reason": "parse failed: 5 diagnostics",
+  "final_verdict": "INVALID-PATCH",
+  "verdict_detail": {
+    "reason": "parse failed: 5 diagnostics",
+    "explanation": "stub condition C4_invalid_patch"
+  },
+  "total_input_tokens": 0,
+  "total_output_tokens": 0,
+  "wall_time_s": 0.0,
+  "stop_reason": "patch_submitted",
+  "error": null
+}
