@@ -157,6 +157,134 @@ def _load_verdict_ladder() -> dict:
     return json.loads(path.read_text())
 
 
+def _bucket(cycle: int | None) -> str | None:
+    if cycle is None:
+        return None
+    if cycle < 5:
+        return "0-4"
+    if cycle < 10:
+        return "5-9"
+    if cycle < 20:
+        return "10-19"
+    return "20+"
+
+
+def _validate_against_corpus_stats(task_records: list[dict], stats: dict) -> None:
+    """Cross-check the dashboard's own independently-assembled per-task data
+    against results/corpus_stats.json's separately-computed aggregates.
+    Both read the same underlying tasks.json files but process them through
+    completely different code paths (this script never imports
+    scripts/build_stats.py's aggregation functions, and vice versa) - so
+    agreement here is real evidence neither has drifted from the committed
+    corpus, not a tautology checking a script against itself.
+
+    FAILS THE BUILD (raises SystemExit) on any mismatch - every mismatch is
+    printed as (task_id_or_aggregate_key, field, dashboard_value,
+    corpus_stats_value) so a failure is immediately debuggable, never a
+    silent guess about which side is wrong.
+    """
+    mismatches: list[tuple[str, str, object, object]] = []
+
+    def check(key: str, field: str, dash_val, stats_val) -> None:
+        if dash_val != stats_val:
+            mismatches.append((key, field, dash_val, stats_val))
+
+    # 1. Per-task formal_k must match the design's formal_k in corpus_stats.json -
+    # except ERROR-decision tasks, whose formal_k is correctly None (the
+    # fidelity guard rejected them before formal verification was ever
+    # attempted, so there is no "k used" to compare against the design's
+    # configured constant - checking it here found exactly and only the 2
+    # ERROR tasks failing, confirmed a check-logic issue, not a data
+    # mismatch: both tasks.json (formal_k=None, error set) and
+    # corpus_stats.json (formal_k=25, a per-design constant unrelated to
+    # any specific task's outcome) are independently correct.
+    design_k = {d["name"]: d["formal_k"] for d in stats["designs"]}
+    for t in task_records:
+        if t["formal_k"] is None:
+            continue
+        check(t["task_id"], "formal_k", t["formal_k"], design_k[t["design"]])
+
+    # 2. Per-design verdict counts, both directions (no extra, none missing).
+    dash_design_verdicts: dict[str, dict[str, int]] = {}
+    for t in task_records:
+        dash_design_verdicts.setdefault(t["design"], {})
+        dash_design_verdicts[t["design"]][t["forge_decision"]] = dash_design_verdicts[t["design"]].get(t["forge_decision"], 0) + 1
+    for d in stats["designs"]:
+        dv = dash_design_verdicts.get(d["name"], {})
+        all_verdicts = set(dv) | set(d["verdicts"])
+        for verdict in all_verdicts:
+            check(f"aggregate:design={d['name']}", f"verdicts.{verdict}", dv.get(verdict, 0), d["verdicts"].get(verdict, 0))
+
+    # 3. Per-operator verdict counts and candidate totals.
+    dash_op_verdicts: dict[str, dict[str, int]] = {}
+    for t in task_records:
+        dash_op_verdicts.setdefault(t["operator"], {})
+        dash_op_verdicts[t["operator"]][t["forge_decision"]] = dash_op_verdicts[t["operator"]].get(t["forge_decision"], 0) + 1
+    for op in stats["operators"]:
+        dv = dash_op_verdicts.get(op["name"], {})
+        all_verdicts = set(dv) | set(op["verdicts"])
+        for verdict in all_verdicts:
+            check(f"aggregate:operator={op['name']}", f"verdicts.{verdict}", dv.get(verdict, 0), op["verdicts"].get(verdict, 0))
+        check(f"aggregate:operator={op['name']}", "candidates", sum(dv.values()), op["candidates"])
+
+    # 4. Corpus totals.
+    check("aggregate:corpus", "recorded", len(task_records), stats["corpus_totals"]["recorded"])
+    total_verdicts: dict[str, int] = {}
+    for t in task_records:
+        total_verdicts[t["forge_decision"]] = total_verdicts.get(t["forge_decision"], 0) + 1
+    for verdict in set(total_verdicts) | set(stats["corpus_totals"]["verdicts"]):
+        check("aggregate:corpus", f"total_verdicts.{verdict}", total_verdicts.get(verdict, 0), stats["corpus_totals"]["verdicts"].get(verdict, 0))
+
+    # 5. silent_bug_rate per design (the headline finding's own numerator/denominator).
+    for d in stats["silent_bug_rate"]["per_design"]:
+        dv = dash_design_verdicts.get(d["design"], {})
+        check(f"aggregate:design={d['design']}", "silent_bug_rate.keep", dv.get("KEEP", 0), d["keep"])
+        check(f"aggregate:design={d['design']}", "silent_bug_rate.silent", dv.get("SILENT", 0), d["silent"])
+
+    # 6. Headline rates, recomputed from dashboard data with float tolerance.
+    total_keep = sum(dv.get("KEEP", 0) for dv in dash_design_verdicts.values())
+    total_silent = sum(dv.get("SILENT", 0) for dv in dash_design_verdicts.values())
+    dash_pooled_rate = round(100.0 * total_silent / (total_keep + total_silent), 1)
+    if abs(dash_pooled_rate - stats["silent_bug_rate"]["rate_pct"]) > 0.05:
+        mismatches.append(("aggregate:corpus", "silent_bug_rate.rate_pct", dash_pooled_rate, stats["silent_bug_rate"]["rate_pct"]))
+
+    total_recorded = sum(sum(dv.values()) for dv in dash_design_verdicts.values())
+    total_quarantine = total_verdicts.get("QUARANTINE", 0)
+    dash_equiv_rate = round(100.0 * total_quarantine / total_recorded, 1)
+    stats_equiv_rate = round(100.0 * stats["corpus_totals"]["verdicts"]["QUARANTINE"] / stats["corpus_totals"]["recorded"], 1)
+    if abs(dash_equiv_rate - stats_equiv_rate) > 0.05:
+        mismatches.append(("aggregate:corpus", "equivalent_rate_pct (QUARANTINE/recorded)", dash_equiv_rate, stats_equiv_rate))
+
+    bns = next(op for op in stats["operators"] if op["name"] == "blocking_nonblocking_swap")
+    dash_bns = dash_op_verdicts.get("blocking_nonblocking_swap", {})
+    dash_bns_evaluated = sum(v for k, v in dash_bns.items() if k != "ERROR")
+    dash_bns_rate = round(100.0 * dash_bns.get("QUARANTINE", 0) / dash_bns_evaluated, 1) if dash_bns_evaluated else None
+    if dash_bns_rate != bns["equivalent_rate_pct"]:
+        mismatches.append(("aggregate:operator=blocking_nonblocking_swap", "equivalent_rate_pct", dash_bns_rate, bns["equivalent_rate_pct"]))
+
+    # 7. Divergence-depth histogram (KEEP tasks only, same bucketing as corpus_stats.json).
+    hist = stats["divergence_depth_histogram_keep"]
+    dash_buckets: dict[str, int] = {}
+    for t in task_records:
+        if t["forge_decision"] == "KEEP" and t["divergence_cycle"] is not None:
+            b = _bucket(t["divergence_cycle"])
+            dash_buckets[b] = dash_buckets.get(b, 0) + 1
+    for b, count in hist["buckets"].items():
+        check("aggregate:divergence_histogram", f"bucket.{b}", dash_buckets.get(b, 0), count)
+
+    if mismatches:
+        print("\n=== DASHBOARD NUMBER GUARD: MISMATCH DETECTED ===", file=sys.stderr)
+        print(f"{'task_id / key':<45}{'field':<45}{'dashboard':<15}corpus_stats.json", file=sys.stderr)
+        for key, field, dash_val, stats_val in mismatches:
+            print(f"{key:<45}{field:<45}{str(dash_val):<15}{stats_val}", file=sys.stderr)
+        raise SystemExit(
+            f"\nBUILD FAILED: {len(mismatches)} mismatch(es) between dashboard data and "
+            f"results/corpus_stats.json (see table above). This is a finding, not a script bug "
+            f"to route around - report it before touching either side."
+        )
+    print(f"Number guard: dashboard data matches results/corpus_stats.json on every overlapping field ({len(task_records)} tasks, {len(stats['operators'])} operators, {len(stats['designs'])} designs).")
+
+
 def build_data() -> dict:
     env.sweep_orphaned_solvers()
     stats = json.loads((REPO_ROOT / "results" / "corpus_stats.json").read_text())
@@ -166,6 +294,8 @@ def build_data() -> dict:
     t0 = time.time()
     task_records = [_build_task_record(t, i, len(tasks)) for i, t in enumerate(tasks)]
     print(f"Done in {time.time() - t0:.1f}s")
+
+    _validate_against_corpus_stats(task_records, stats)
 
     return {
         "generated_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
