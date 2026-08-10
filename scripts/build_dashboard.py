@@ -545,7 +545,7 @@ def _render_verdict_ladder_static_rows() -> str:
         <td>PROVEN-BMC</td><td>as surfaced final_verdict</td>
         <td><span class="badge pass-unreachable">never &mdash; by design</span></td>
         <td colspan="2">Always remapped to <code>PLAUSIBLE</code> by
-          <code>_FORMAL_TO_VERDICT</code> (<a href="../rtlverdict/agent/loop.py#L39">agent/loop.py:39</a>).
+          <code>_FORMAL_TO_VERDICT</code> (<a href="https://github.com/Vignesh-Er/rtl_verdict/blob/main/rtlverdict/agent/loop.py#L39" target="_blank" rel="noopener">agent/loop.py:39</a>).
           The raw result is real and recorded internally; it is never the headline label.</td>
       </tr>
       <tr class="unreachable">
