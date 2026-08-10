@@ -1,6 +1,6 @@
-# Engineering log: twelve times this project checked itself instead of assuming
+# Engineering log: thirteen times this project checked itself instead of assuming
 
-Eleven of the twelve episodes below are cases where something — a
+Eleven of the thirteen episodes below are cases where something — a
 static read of RTLIL, a formal tool's own summary, a "timed out"
 status, a scratch directory that happened to already exist, a
 percentage that looked clean — said one thing, and a cheap,
@@ -9,11 +9,12 @@ this project's actual thesis (a testbench saying PASS is not proof)
 turned back on its own tooling, not a separate virtue. A log of caught
 mistakes is presented here as a strength because catching them cheaply,
 before they became a committed claim, is the entire method. The
-twelfth episode is different in kind, deliberately included anyway: an
-API-surface audit whose result was that the code was already correct —
-included because *verifying* a correct-by-design mapping instead of
-assuming it from the class names is the same discipline as the other
-eleven, just with a different outcome.
+twelfth and thirteenth episodes are different in kind, deliberately
+included anyway: an API-surface audit and an instrument-validation
+episode, respectively, where the point was *verifying* something before
+trusting it, not fixing something already known broken — the same
+discipline as the other eleven, just applied earlier, before a wrong
+conclusion had the chance to get drawn at all.
 
 Fixed structure per episode: **Symptom → Naive reading → Discriminating
 test → Result → Rule adopted.**
@@ -401,3 +402,54 @@ and believe the check covered both. This project's own
 distinction explicitly, in a table, rather than leaving it to be
 inferred from source (see its §7 and the README's "Verdict taxonomy"
 section) — a direct product of this episode.
+
+## 13. The instrument was lying, not the layout
+
+**Symptom.** Headless-rendered screenshots of the dashboard at a
+narrow window width showed text and tables cut off past the right edge
+of the image, across multiple unrelated sections of the page at once
+(header, findings cards, the verdict-ladder table).
+
+**Naive reading.** The CSS is broken at narrow widths — go fix
+whatever the screenshots show as wrong: add wrapping rules, contain the
+tables, adjust the grid. (Several of these fixes were in fact applied,
+and were real, independently-correct improvements — but they were
+being diagnosed against a measurement that hadn't itself been checked.)
+
+**Discriminating test.** Before trusting any more diagnoses from the
+screenshots, checked the measuring instrument itself: rendered a
+trivial, content-free HTML page (`<div>` reporting
+`window.innerWidth`) at several requested widths via headless Chrome's
+`--window-size` flag, from `300px` up to `800px`.
+
+**Result.** Every request below roughly `500px` — `300`, `390`, `400`,
+`450`, `480` — reported back the identical `window.innerWidth=504`
+(Edge showed the same behavior at `496`). This Windows headless
+Chrome/Edge install silently clamps the viewport to a floor around
+`500px` regardless of what
+`--window-size` requests below that. Every "mobile" screenshot taken
+before this check had actually been rendered at `~504px` and then
+squeezed into a smaller output image, which is what produced the
+cut-off appearance — a capture artifact, not (only) a CSS bug. Built a
+minimal Chrome DevTools Protocol client (Node's built-in `WebSocket`,
+no npm dependency) to drive `Emulation.setDeviceMetricsOverride`
+directly, bypassing OS-level window creation entirely, and got a
+genuine `390px` render. Only then were the real CSS bugs (unbreakable
+long code spans, table headers wrapping letter-by-letter) diagnosed and
+fixed with confidence — against a measurement now known to be
+trustworthy instead of merely available.
+
+**Rule adopted.** Validate the instrument before trusting a measurement
+it produces. This is the fourth unrelated layer this project has hit
+the same rule at: the eqy control test (episode 3 — checked the tool
+against a case with a known answer before trusting its verdict on cases
+without one), the toggle-coverage denominator check
+(`results/silent_bugs.md` §5 — checked whether the *metric itself* was
+comparable across designs before trusting a cross-design pattern in
+it), the surfaced-vs-computed verdict audit (episode 12 — checked what
+a consumer actually reads, not what a function returns), and now the
+render viewport itself. Four different kinds of instrument — a formal
+tool, a coverage metric, an API's own return value, a browser's
+reported window size — same failure mode each time: something
+downstream of the instrument looked wrong, and the instrument was the
+actual thing that needed checking first.
