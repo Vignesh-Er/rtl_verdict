@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import difflib
 import json
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -157,6 +158,37 @@ def _load_verdict_ladder() -> dict:
     return json.loads(path.read_text())
 
 
+def _dashboard_git_provenance() -> dict:
+    """This dashboard's OWN git state, captured fresh at build time - never
+    borrowed from results/corpus_stats.json's provenance.git field, which is
+    a DIFFERENT stamp: whatever commit was HEAD the last time
+    scripts/build_stats.py happened to run, potentially hours and many
+    commits stale by the time this script runs (found live: corpus_stats.json
+    still said a9a8045491bf7ecbdc52462de95022b332a27dce/dirty=True from a
+    build_stats.py run at 2026-08-09T10:25:09Z, while actual HEAD was five
+    commits later and the tree was genuinely clean - a dashboard whose whole
+    thesis is "don't trust a claim without checking its provenance" had
+    shipped an unchecked provenance stamp). Fails the build if the tree is
+    dirty: the only way to guarantee the embedded SHA is trustworthy is
+    commit-everything, then generate, then commit the generated file as its
+    own last step - never generate against uncommitted state and hope.
+    """
+    sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=REPO_ROOT, capture_output=True, text=True, check=True
+    ).stdout.strip()
+    dirty = bool(subprocess.run(
+        ["git", "status", "--porcelain"], cwd=REPO_ROOT, capture_output=True, text=True, check=True
+    ).stdout.strip())
+    if dirty:
+        raise SystemExit(
+            "BUILD FAILED: working tree is dirty. This dashboard embeds its own git SHA as a "
+            "provenance claim - generating it against uncommitted changes would make that claim "
+            "false the moment anything else gets committed. Commit (or stash) everything, then "
+            "re-run this script, then commit the regenerated docs/index.html as its own last step."
+        )
+    return {"commit_sha": sha, "dirty": dirty}
+
+
 def _bucket(cycle: int | None) -> str | None:
     if cycle is None:
         return None
@@ -286,6 +318,11 @@ def _validate_against_corpus_stats(task_records: list[dict], stats: dict) -> Non
 
 
 def build_data() -> dict:
+    # Checked FIRST, before the ~70s per-task build below - a dirty-tree
+    # failure should be immediate, not discovered after a minute of work
+    # that would have to be redone anyway.
+    dashboard_git = _dashboard_git_provenance()
+
     env.sweep_orphaned_solvers()
     stats = json.loads((REPO_ROOT / "results" / "corpus_stats.json").read_text())
     tasks = _load_all_tasks()
@@ -299,6 +336,7 @@ def build_data() -> dict:
 
     return {
         "generated_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "dashboard_git": dashboard_git,
         "corpus_stats": stats,
         "tasks": task_records,
         "figures": _load_figures(),
@@ -562,9 +600,15 @@ def render_html(data: dict) -> str:
         f'<figure><figcaption>{name.replace("_", " ")}</figcaption>{svg}</figure>'
         for name, svg in data["figures"].items()
     )
-    prov = data["corpus_stats"]["provenance"]
-    git_sha = prov["git"]["commit_sha"]
-    dirty = " (dirty)" if prov["git"]["dirty"] else ""
+    # This dashboard's OWN provenance (data["dashboard_git"], captured fresh by
+    # _dashboard_git_provenance() at build time) - NOT
+    # data["corpus_stats"]["provenance"]["git"], which is a different, older
+    # stamp: whenever scripts/build_stats.py last happened to run, potentially
+    # many commits stale by dashboard build time (see engineering_log.md
+    # episode 14).
+    git_sha = data["dashboard_git"]["commit_sha"]
+    dirty = " (dirty)" if data["dashboard_git"]["dirty"] else ""
+    corpus_stats_sha = data["corpus_stats"]["provenance"]["git"]["commit_sha"]
 
     return f"""<!doctype html>
 <html lang="en">
@@ -633,7 +677,9 @@ def render_html(data: dict) -> str:
 <footer>
   <div class="wrap">
     <div id="footer-content"></div>
-    <p>git <code>{git_sha}{dirty}</code> &middot; generated {data["generated_at_utc"]}</p>
+    <p>dashboard built at git <code>{git_sha}{dirty}</code>, {data["generated_at_utc"]}
+       &middot; underlying corpus data (<code>corpus_stats.json</code>) last regenerated at git
+       <code>{corpus_stats_sha}</code>, {data["corpus_stats"]["provenance"]["generated_at_utc"]}</p>
   </div>
 </footer>
 
